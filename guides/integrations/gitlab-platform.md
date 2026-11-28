@@ -1,5 +1,7 @@
 # GitLab como plataforma del equipo
 
+En inglés: [gitlab-platform.en.md](gitlab-platform.en.md).
+
 Esta guía es el caso de GitLab para lo que los pasos del arnés dicen en neutro: «el pedido de trabajo», «el pedido de
 cambio», «la CI» y «la plataforma del equipo». Vale para el GitLab público y para una instalación propia. El caso de
 GitHub está en `guides/integrations/github-platform.md` y el de Azure DevOps en `guides/integrations/ado-projects.md`;
