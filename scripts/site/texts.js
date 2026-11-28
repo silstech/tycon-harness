@@ -313,7 +313,7 @@ const TEXTOS = {
   'proyectos.est.sinRango': { es: 'sin rango', en: 'no range' },
   'proyectos.est.encima': { es: 'encima por {por}', en: 'above by {por}' },
   'proyectos.est.debajo': { es: 'debajo por {por}', en: 'below by {por}' },
-  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} missing' },
+  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} left', uno: { es: 'abierta: falta 1', en: 'open: 1 left' } },
   'proyectos.est.totalDelProducto': { es: 'Total del producto', en: 'Product total' },
   'proyectos.est.parcial': { es: '(parcial: falta alguna épica)', en: '(partial: an epic is missing)' },
   'proyectos.est.parcialAbierta': { es: '(parcial: alguna épica sigue abierta)', en: '(partial: an epic is still open)' },
@@ -2950,7 +2950,15 @@ function problemasDeLaTabla(tabla) {
       if (typeof v[i] !== 'string' || !v[i].trim()) out.push(`${k}: falta el texto en «${i}»`);
       else if (v[i].includes('<')) out.push(`${k}: el texto en «${i}» trae HTML`);
     }
-    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i)) out.push(`${k}: idioma desconocido «${i}»`);
+    // la forma `uno` (el singular, cuando `n` es 1): los dos idiomas, sin HTML, los mismos valores, y sólo en un texto con {n}
+    if (Object.prototype.hasOwnProperty.call(v, 'uno')) {
+      const u = v.uno;
+      if (!u || typeof u !== 'object' || IDIOMAS.some((i) => typeof u[i] !== 'string' || !u[i].trim()) || Object.keys(u).some((i) => !IDIOMAS.includes(i))) out.push(`${k}: la forma «uno» no es { es, en }`);
+      else if (IDIOMAS.some((i) => u[i].includes('<'))) out.push(`${k}: la forma «uno» trae HTML`);
+      else if (valoresDe(u.es).join(',') !== valoresDe(u.en).join(',')) out.push(`${k}: la forma «uno» no tiene los mismos valores en los dos idiomas`);
+      if (typeof v.es === 'string' && !v.es.includes('{n}')) out.push(`${k}: la forma «uno» sólo va en un texto con {n}`);
+    }
+    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i) && i !== 'uno') out.push(`${k}: idioma desconocido «${i}»`);
     if (typeof v.es === 'string' && typeof v.en === 'string' && valoresDe(v.es).join(',') !== valoresDe(v.en).join(',')) out.push(`${k}: los valores con nombre no son los mismos en los dos idiomas (${valoresDe(v.es).join(', ') || 'ninguno'} / ${valoresDe(v.en).join(', ') || 'ninguno'})`);
   }
   return out;
@@ -2963,7 +2971,9 @@ function problemasDeLaTabla(tabla) {
 function t(idioma, clave, valores = {}) {
   const e = TEXTOS[clave];
   if (!e) throw new Error(`texts.js: no hay texto para la clave «${clave}»`);
-  const s = e[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
+  // una clave con forma `uno` la usa cuando la cantidad `n` es 1 («1 tarea», no «1 tareas»)
+  const forma = e.uno && Number(valores.n) === 1 && String(valores.n).trim() !== '' ? e.uno : e;
+  const s = forma[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
   return s.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (m, n) => (Object.prototype.hasOwnProperty.call(valores, n) ? String(valores[n]) : m));
 }
 

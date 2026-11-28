@@ -3605,6 +3605,12 @@
       "requiere": []
     },
     {
+      "__nota": "Un texto del sitio con una cantidad dice el singular cuando es 1 (la forma «uno» de la tabla de textos). Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-plurals.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "story 8.87: las palabras que lee una persona — «ejecución» y no «corrida» en los textos del sitio y de los programas, y «el agente» cuando el texto habla del agente en general; los nombres de la máquina siguen.",
       "raiz": "arnes",
       "ruta": "tests/human-words.test.js",

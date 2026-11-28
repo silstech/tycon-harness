@@ -33,6 +33,8 @@ const EN={
   "Implementar":"Implement","Correr las pruebas":"Run the tests","Revisores":"Reviewers",
   "Hallazgos":"Findings","Probar en vivo":"Try it live","Preparar el pull request":"Prepare the pull request","Cerrar la historia":"Close the story",
   "coordina":"coordinates",
+  // lo que espera una sesión, como lo dicen las ejecuciones
+  "el plan espera tu firma":"the plan waits for your signature","Espera su turno para entrar":"Waits for its turn to merge",
   "Libre":"Free","Coordinando":"Coordinating","Inactiva":"Inactive","Terminado, falta cerrar":"Done, still to close","Pasada de la hora":"Past its time","En hora":"On time",
   "Agentes de IA":"AI agents","Pendientes":"Pending","tocá para ver el detalle":"tap to see the detail","TU FIRMA":"SIGN","PARADA":"STOPPED",
   "A medio camino":"Halfway","Camino corto":"Short path","Cargando las oficinas…":"Loading the offices…","Con la coordinadora":"With the coordinator","Con las sesiones":"With the sessions",
@@ -348,7 +350,7 @@ function pintarTarjetas(c,list,alTocar){c.replaceChildren();
   if(!list.length){c.appendChild(el("p","empty","No hay sesiones abiertas en esta máquina."));return}
   list.forEach((a,i)=>{const s=AST[a.estado]||[a.estado||"","#999"];const k=el("div","card");
     const h=el("h3");const d=el("span","dot");d.style.background=SHIRT[i%SHIRT.length];h.appendChild(d);h.appendChild(document.createTextNode(a.nombre||""));k.appendChild(h);
-    const st=el("span","st",s[0]);st.style.color=s[1];st.style.borderColor=s[1];const chips=el("div","chips");chips.appendChild(st);if(a.comoTrabaja&&a.comoTrabaja!==s[0])chips.appendChild(etiquetaComo(a.comoTrabaja,a.tarea));k.appendChild(chips);k.style.setProperty("--c",s[1]);
+    const st=el("span","st",s[0]);const chips=el("div","chips");chips.appendChild(st);if(a.comoTrabaja&&a.comoTrabaja!==s[0])chips.appendChild(etiquetaComo(a.comoTrabaja,a.tarea));k.appendChild(chips);k.style.setProperty("--c",s[1]);
     pintarFicha(a,k,false);if(alTocar){k.classList.add("abre");k.tabIndex=0;k.setAttribute("role","button");k.onclick=e=>{if(!e.target.closest("button,summary,a"))alTocar(a,k)};k.onkeydown=e=>{if(e.target===k&&(e.key==="Enter"||e.key===" ")){e.preventDefault();alTocar(a,k)}};}c.appendChild(k);})}
 // lo que se dice de una sesión, de un solo lugar: la tarjeta y el panel pintan esta lista y sólo cambia su estilo
 // el número de una tarea del tablero; una fila escrita a mano sin numerar dice «sin número»
