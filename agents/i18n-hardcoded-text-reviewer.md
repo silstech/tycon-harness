@@ -2,9 +2,11 @@
 name: i18n-hardcoded-text-reviewer
 tools: Read, Grep, Glob
 model: sonnet
-description: Audita texto visible hardcodeado sin i18n, solo lo nuevo del diff. Solo invocar si el repo tiene .tycon/advisors.yaml con i18n.required=true y el diff toca .tsx, .ts, .jsx, .js o .cs
+description: Audita texto visible hardcodeado sin i18n, solo lo nuevo del diff. Solo invocar si el repo tiene .tycon/advisors.yaml con i18n.required=true y el diff toca un archivo de código que no es prueba
 omitClaudeMd: true
 ---
+
+<!-- lenguajes: csharp typescript python go java-kotlin rust | no-aplica: bash (un guion no tiene interfaz que traducir) -->
 
 # i18n-hardcoded-text-reviewer
 
@@ -21,7 +23,7 @@ Sin un guardia, cada PR puede meter un literal de UI hardcodeado y nadie lo fren
 El `tycon-pipeline` (vía `pipeline.js advisors`) lo agrega al set paralelo **solo si**:
 
 1. El repo tiene `.tycon/advisors.yaml` con un bloque `i18n:` y `required: true`. **Y**
-2. El diff toca al menos un archivo `.tsx`, `.ts`, `.jsx`, `.js` o `.cs` (texto visible posible).
+2. El diff toca al menos un archivo de código que no es prueba, de cualquier lenguaje de la tabla de abajo (texto visible posible).
 
 Si el proyecto NO declara `i18n.required: true` → el advisor **no corre** (no molesta a proyectos ES-only). Es la generalización del principio "si el proyecto requiere i18n, que no se nos escape de nuevo": cualquier proyecto futuro que prenda el flag hereda el guardia.
 
@@ -53,11 +55,37 @@ Campos: `required` (obligatorio, gate). `hook` (cómo reconocer una string ya tr
 
 ## Qué cuenta como finding (texto visible al usuario sin i18n)
 
-- Texto en JSX renderizado: `<span>Texto</span>`, `<button>Guardar</button>`, `{'Texto'}` en JSX.
+- Texto renderizado en la interfaz: `<span>Texto</span>`, `<button>Guardar</button>`, `{'Texto'}` en JSX, o el texto
+  suelto de una plantilla (Vue, Svelte, una plantilla del servidor).
 - Literales en props de UI que muestran texto: `label=`, `title=`, `placeholder=`, `aria-label=`, `tooltip=`, `heading=`, `confirmLabel=`, `emptyMessage=`, `subtitle=`.
 - Mensajes de toast/notificación/alert/confirm/error mostrados al usuario.
 - Mapas de labels que se renderizan: `const X_LABELS = { KEY: 'Texto visible' }` (etapas, estados, roles, tipos).
-- Backend (si `backend_required: true`): `message` de `Ceibo*Exception`, `ProblemDetails.Detail`, `Results.BadRequest("...")`, FluentValidation `.WithMessage("...")`.
+- Backend (si `backend_required: true`): el mensaje de un error que llega a la persona (una excepción de dominio, el
+  detalle de una respuesta de error, un mensaje de validación).
+
+Cada lenguaje lo escribe a su manera. Esta tabla tiene una fila por cada lenguaje que lanza a este revisor (los de
+`byLanguage()` de `skills/tycon-pipeline/scripts/lib/code-files.js`; una prueba compara las dos listas). Un lenguaje
+que no está acá (la organización puede sumar terminaciones) se revisa por concepto: texto que la persona ve, escrito
+en el código en vez de pasar por el catálogo de traducciones del proyecto.
+
+<!-- lenguajes:inicio -->
+| Lenguaje | Texto visible típico | Cómo se ve traducido |
+|---|---|---|
+| TypeScript | JSX/TSX, props de UI, `throw new Error('…')` que llega a la UI | `t('clave')`, `<Trans>`, `intl.formatMessage` |
+| JavaScript | igual que TypeScript, en `.js`/`.jsx` | igual que TypeScript |
+| Vue | texto suelto en `<template>`, `:label="'…'"` | `{{ $t('clave') }}`, `t('clave')` |
+| Svelte | texto suelto en el marcado, `title="…"` | `{$_('clave')}`, `$t('clave')` |
+| C# (.NET) | `ProblemDetails.Detail`, `Results.BadRequest("…")`, `.WithMessage("…")`, el mensaje de una excepción de dominio | recursos `.resx`, `IStringLocalizer["clave"]` |
+| Python | `raise ValueError("…")` que llega a la persona, `flash("…")`, texto en plantillas | `_("…")`, `gettext("…")`, `{% trans %}` |
+| Go | `errors.New("…")`/`fmt.Errorf("…")` que llega a la persona, texto en `html/template` | el paquete de mensajes del proyecto (`i18n.T`, `printer.Sprintf`) |
+| Ruby | `flash[:notice] = "…"`, texto en vistas ERB, mensajes de validación | `t('.clave')`, `I18n.t('clave')` |
+| Java | `throw new ...Exception("…")` que llega a la persona, texto en plantillas | `ResourceBundle`, `messageSource.getMessage("clave", …)` |
+| Kotlin | igual que Java; texto en Compose (`Text("…")`) | `stringResource(R.string.clave)`, `ResourceBundle` |
+| Swift | `Text("…")` de SwiftUI, `label.text = "…"` | `String(localized: "clave")`, `NSLocalizedString` |
+| Rust | el mensaje de un error que llega a la persona (`Err("…".into())`, `anyhow!("…")`), texto en plantillas | el sistema de mensajes del proyecto (`fl!("clave")`, `t!("clave")`) |
+<!-- lenguajes:fin -->
+
+Un texto en SwiftUI `Text("clave")` ya se busca en el catálogo: cuenta sólo si el literal es una frase, no una clave.
 
 ## Qué NO cuenta (excluir)
 
@@ -88,7 +116,7 @@ Campos: `required` (obligatorio, gate). `hook` (cómo reconocer una string ya tr
 |---|---|---|
 | **I18N-W1** | Toast/error/confirm/notificación **nuevo** sin `t()` | Mensaje user-facing (`toast.success('...')`, `showToast`, `alert`, `window.confirm`, mensaje de error construido para mostrar, `addNotification`) agregado por el diff sin i18n. Fix: clave i18n + `t(...)`. |
 | **I18N-W2** | Texto de usuario en librería compartida agnóstica | String visible hardcodeado en un path listado en `shared_libs` (ej. `shared/ui`). Como la lib la consumen varias apps y no tiene i18n propio, el texto inline impone idioma a todas. Fix: exponer el texto como prop de label traducible (default en el idioma actual); cada app la llena con su `t()` (patrón labels-as-props). |
-| **I18N-W3** | Mensaje user-facing de backend sin criterio de audiencia | Solo si `backend_required: true`. `message` de `Ceibo*Exception`/`ProblemDetails.Detail`/`Results.BadRequest("...")`/`.WithMessage("...")` **nuevo** sin pasar por el mecanismo i18n declarado, o con idioma que no respeta `audiences` (ej. mensaje al operador en inglés, o a una integración externa en español sin criterio). Fix: resolver vía el mecanismo del ADR de backend + idioma según audiencia. |
+| **I18N-W3** | Mensaje user-facing de backend sin criterio de audiencia | Solo si `backend_required: true`. el mensaje de un error que llega a la persona (las formas de la tabla de lenguajes: una excepción de dominio, `ProblemDetails.Detail`, `raise ValueError("...")`, `errors.New("...")`…) **nuevo** sin pasar por el mecanismo i18n declarado, o con idioma que no respeta `audiences` (ej. mensaje al operador en inglés, o a una integración externa en español sin criterio). Fix: resolver vía el mecanismo del ADR de backend + idioma según audiencia. |
 | **I18N-W4** | Clave i18n agregada a un solo locale (drift de catálogo) | El diff agrega una clave a un archivo de `locales_glob` pero no a los otros locales del proyecto (cuando hay >1). Genera "Missing key" en runtime para el idioma faltante. Fix: agregar la clave a todos los locales declarados. (Inerte mientras el proyecto tenga 1 solo locale.) |
 | **I18N-W5** | Texto en español NO neutro (voseo / argentinismos) | Solo si `spanish_variant: neutral`. Texto user-facing **nuevo** (en JSX, prop de UI, toast/error, valor de catálogo `es.json`, o `message` de backend) que usa formas rioplatenses en vez de español neutro. Indicadores: **voseo imperativo** ("Ingresá", "Seleccioná", "Reintentá", "Cargá", "Marcá", "Agregá", "Describí", "Completá", "Elegí", "Fijate", "Mirá", "Sacá", "Guardá", "Confirmá", "Revisá", "Verificá", "Esperá", "Probá", "Escaneá", "Asegurate"), **voseo pronominal/conjugación** ("vos", "tenés", "podés", "querés", "sabés", "hacés", "decís", "vení", "andá", "dale"), **léxico regional** ("acá"→"aquí", "recién" como "apenas"). Fix: reescribir en neutro — preferir **infinitivo** para acciones ("Ingresar", "Seleccionar") y "usted"/impersonal para instrucciones ("Ingrese el código" / "Debe ingresar"), "aquí" en vez de "acá". 🔴 **Requiere criterio, NO grep ciego**: muchas palabras terminan en vocal acentuada sin ser voseo — `Mercadería`, `Categoría`, `Recepción`, `Distribución`, `está`, `será`, `aplicó`, `código`, `región`, `días` son neutras y NO se marcan. Marcar solo verbos en 2ª persona singular voseo + el léxico listado. |
 
@@ -141,4 +169,4 @@ va en tu respuesta.
 - I18N-C1/C2 son **bloqueantes salvo waive explícito** en Step 7 (no auto-fail del build). Para un falso positivo legítimo (texto que NO es user-facing, o que debe quedar inline por razón concreta) → agregar `// @i18n-allow: <razón>` en la línea; el advisor lo respeta en runs futuros.
 - El advisor NO arregla ni hace sweep del backlog — solo marca deuda **nueva**. Para limpiar lo existente, las stories de sweep dedicadas.
 - Complementa pero NO reemplaza un test de CI con baseline (ratchet siempre-prendido): el advisor corre solo dentro del `tycon-pipeline`; un commit fuera del pipeline no lo dispara. Si el proyecto quiere garantía dura, sumar el test de baseline además del advisor.
-- Para conventions de stack (no-i18n) ver `tycon-plugin-react-conventions` / `-nextjs-conventions` / `-dotnet-conventions`. Para secretos/URLs hardcodeados (que NO son i18n) ver `tycon-plugin-security-basics` (SEC-C2/C8) y `tycon-plugin-nextjs-conventions` (NEXT-W9).
+- Para convenciones de un stack (no de i18n), los revisores del paquete de ese stack, si la organización lo tiene activo. Para secretos o direcciones escritas en el código (que NO son i18n), `tycon-plugin-security-basics` (SEC-C2/C8).

@@ -136,7 +136,7 @@ Ningún otro advisor tiene en su scope verificar estos gates. Resultado: una sto
 1. Leer frontmatter de la story → extraer `pipelines:` block.
 2. Por cada pipeline → extraer `tests_done: [...]` list.
 3. Filtrar nombres que matcheen pattern E2E (heurística: `E\d+|FullUI-\d+|^E2E-` o explícitamente `*.spec.ts` referenciado en el item).
-4. Por cada E2E name → localizar el spec file en `tests/e2e/*.spec.ts` (grep el name como literal en describe/test).
+4. Por cada E2E name → localizar el spec file entre las pruebas de punta a punta del repo (las del disparo de `tycon-e2e-realness-checker`: `.spec` bajo `e2e/`, `playwright/` o la carpeta declarada en `e2e.specs_dir`; grep el name como literal en describe/test).
 5. Invocar `tycon-e2e-realness-checker` sobre cada spec encontrado (o emular su algoritmo).
 6. Si algún spec reporta CRITICAL (REAL-C1, REAL-C2, REAL-C3) → emit DODRT-C4.
 
@@ -367,7 +367,7 @@ correr; esta regla juzga si el texto y la salida sostienen el AC.
 3. **DODRT-C1**: identificar endpoints/features nuevos del diff. Cross-check con `.advisors/pipeline-runs/<story>/smoke-check.md` o equivalente.
 4. **DODRT-C2**: chequear que el SHA está pusheado + verificar la corrida del CI con `platform.js ci read` (la capa de plataforma).
 5. **DODRT-C3**: grep patterns transaccionales en files modificados. Para cada match, buscar test de rollback en tests del feature.
-6. **DODRT-C4**: leer frontmatter `pipelines:` block. Por cada E2E name en `tests_done` listas, localizar el spec en `tests/e2e/*.spec.ts` y aplicar reglas de `tycon-e2e-realness-checker` (REAL-C1..C3). Si algún spec falla → emit DODRT-C4.
+6. **DODRT-C4**: leer frontmatter `pipelines:` block. Por cada E2E name en `tests_done` listas, localizar el spec entre las pruebas de punta a punta del repo (las del disparo de `tycon-e2e-realness-checker`) y aplicar reglas de `tycon-e2e-realness-checker` (REAL-C1..C3). Si algún spec falla → emit DODRT-C4.
 7. **DODRT-C5**: si el diff cablea UI nueva (`.tsx` montados) Y sus E2E están diferidos (`tests_pending`), verificar que exista un smoke DRIVEN por-AC (`.advisors/dod-runtime/<story>-ui-smoke-*.md`) real (no mocks) que asserte CADA AC de UI. Cruzar lo AFIRMADO por el orquestador (narración / guía "cómo probar") vs lo EJECUTADO (sub-check anti pre-claim). Ausente / parcial / mockeado / claim-sin-ejecución → emit DODRT-C5.
 8. **DODRT-C9**: por cada evidencia de smoke en `.advisors/dod-runtime/`, exigir el bloque `## Target` (path + SHA + presencia en origin por repo involucrado) o el `target` que anota `smoke-run.sh` en el registro; si el path existe acá, verificar el SHA con `git branch -r --contains`; sin bloque / SHA ausente de origin / smoke localhost de story frontend sin backend declarado → emit C9; path no verificable → W explícito. El repo de la propia historia sin commits todavía NO es C9 (heurística 5); un repo del que se depende sin commits, sí.
 9. **DODRT-W3**: grep URLs no-localhost en evidencia de smoke/scripts/specs; si target es host Bizuit y el path es `/api/` sin `/api/plugins/` → emit.

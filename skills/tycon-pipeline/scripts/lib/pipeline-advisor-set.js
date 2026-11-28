@@ -121,6 +121,32 @@ function i18nRequired(repo) {
   return false;
 }
 
+// ── la carpeta de pruebas de punta a punta que declara el proyecto ────────────
+// `.tycon/advisors.yaml → e2e.specs_dir`, en el primer nivel del bloque (como lo lee el lector del bloque `e2e:` de
+// pipeline-reports.js, que la conoce entre sus llaves). Sin declarar, `null`: valen las carpetas de code-files.js.
+function e2eSpecsDir(repo) {
+  const txt = readText(path.join(repo, '.tycon', 'advisors.yaml')) ||
+              readText(path.join(repo, '.tycon', 'advisors.yml'));
+  if (!txt) return null;
+  let inBlock = false;
+  let blockIndent = 0;
+  let nivelHijo = null;
+  for (const line of txt.split(/\r?\n/)) {
+    if (/^\s*#/.test(line) || line.trim() === '') continue;
+    const indent = line.length - line.trimStart().length;
+    if (!inBlock) {
+      if (/^e2e\s*:/.test(line)) { inBlock = true; blockIndent = indent; }
+      continue;
+    }
+    if (indent <= blockIndent) break;
+    if (nivelHijo === null) nivelHijo = indent;
+    if (indent !== nivelHijo) continue;
+    const m = line.match(/^\s*specs_dir\s*:\s*(\S+)/);
+    if (m) return m[1].replace(/^['"]|['"]$/g, '');
+  }
+  return null;
+}
+
 // ── detección de stack ───────────────────────────────────────────────────────
 // Multi-root aware: leer sólo el package.json en la
 // raíz de --repo daría un falso negativo SILENCIOSO en workspaces contenedores (sin
@@ -362,7 +388,7 @@ function computeCompletitud(storyPath, repo, files) {
   // deferral-tracker si la story tiene bloque `pipelines:` O el diff AGREGÓ *.skip()
   // (líneas agregadas, no archivo completo — un skip pre-existente no es deuda nueva).
   const hasPipelines = /^pipelines:/m.test(story);
-  const testFiles = files.filter((f) => codeFiles.isTestFile(f));
+  const testFiles = files.filter((f) => codeFiles.mayHaveSkips(f));
   const skipContents = readAddedContents(repo, testFiles);
   const hasSkips = skipContents.some((c) => codeFiles.hasSkipMark(c.content, c.file));
   if (hasPipelines || hasSkips) out.push('tycon-deferral-tracker');
@@ -390,9 +416,10 @@ function computeConditional(repo, files, extras = []) {
 
   // (los revisores de un stack —.NET y BIZUIT, Next.js + Postgres— y los de clientes viven en sus paquetes: entran por `extras`)
 
-  // e2e-realness: cualquier spec Playwright en el diff (stack-agnostic).
-  // 🔴 Este advisor no puede omitirse: caza los E2E falsos-verdes.
-  if (anyFileMatches(files, /(^|\/)tests\/e2e\/.*\.spec\.ts$/)) {
+  // e2e-realness: cualquier prueba de punta a punta del diff, con las carpetas y terminaciones de code-files.js o
+  // bajo la carpeta que declara el proyecto. 🔴 Este advisor no puede omitirse: caza los E2E falsos-verdes.
+  const specsDir = e2eSpecsDir(repo);
+  if (files.some((f) => codeFiles.isE2eSpec(f, { specsDir }))) {
     out.push('tycon-e2e-realness-checker');
   }
 
@@ -515,8 +542,10 @@ const ADVISOR_AUDITED_SURFACE = {
     paths: ['**/*.cs', '**/*.ts', '**/*.tsx', '**/*.js', '**/*.mjs', '**/*.cjs', '**/*.sh', ...SOURCE_GLOBS],
     excludePaths: ['**/tests/**', '**/Tests/**', '**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.sh', '**/*.spec.ts', '**/*.spec.tsx', '**/*.spec.js', '**/__tests__/**', ...TEST_GLOBS_8_48],
   },
-  // e2e-realness: solo specs Playwright.
-  'tycon-e2e-realness-checker': { paths: ['**/tests/e2e/**/*.spec.ts', '**/tests/e2e/**/*.spec.tsx'] },
+  // e2e-realness: las terminaciones de una prueba de punta a punta, en cualquier carpeta. Esta lista no ve la carpeta
+  // que declara cada proyecto (no recibe el repo), así que no se acota a las de code-files.js: una `.spec` unitaria
+  // tocada en otra vuelta lo vuelve a lanzar, y él dice que no aplica. Se prefiere eso a no verla.
+  'tycon-e2e-realness-checker': { paths: codeFiles.E2E_SPEC_EXTS.map((e) => `**/*${e}`) },
 
   // (los revisores de un stack declaran su `surface` en el manifiesto de su paquete: la lee superficieDe())
   // llm-cost: sin '**/*.ts' genérico — cualquier .ts del repo

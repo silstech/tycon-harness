@@ -1,0 +1,38 @@
+{
+  "__doc": "Lo que hoy le falta a cada revisor del núcleo para cubrir los lenguajes que el núcleo sabe probar (TESTED_LANGUAGES de code-files.js). reviewer-lists.test.js lo avisa; un faltante que no está acá frena. Cuando un revisor se alinea, su renglón sale de acá; con el registro vacío, frena ante cualquier faltante.",
+  "faltantes": {
+    "llm-cost-reviewer": [
+      "sin declarar"
+    ],
+    "tycon-ac-coverage-checker": [
+      "sin declarar"
+    ],
+    "tycon-dod-runtime-checker": [
+      "sin declarar"
+    ],
+    "tycon-plugin-security-basics": [
+      "sin declarar"
+    ],
+    "tycon-plugin-tests-coverage": [
+      "sin declarar"
+    ],
+    "tycon-retrospective-capturer": [
+      "sin declarar"
+    ],
+    "tycon-signed-scope-audit": [
+      "sin declarar"
+    ],
+    "tycon-silent-failure-hunter": [
+      "sin declarar"
+    ],
+    "tycon-spec-first-checker": [
+      "sin declarar"
+    ],
+    "tycon-story-adversarial-reviewer": [
+      "sin declarar"
+    ],
+    "tycon-story-validator": [
+      "sin declarar"
+    ]
+  }
+}

@@ -1047,7 +1047,7 @@ function runStoryChecks({ repo, storyPath, files = [] }) {
   }
 
   // ── DEFTR-C2: skips en los files del diff sin anotación de deferral ──
-  const diffTestFiles = files.filter((f) => TEST_FILE_RE.test(f));
+  const diffTestFiles = files.filter((f) => codeFiles.mayHaveSkips(f));
   for (const f of diffTestFiles) {
     const abs = path.isAbsolute(f) ? f : path.join(repo, f);
     const c = readText(abs);

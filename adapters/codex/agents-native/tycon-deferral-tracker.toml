@@ -1,12 +1,12 @@
 # ⚙️ GENERADO por build/generate.js — NO EDITAR A MANO (se pisa en la próxima corrida)
 # canónico: agents/tycon-deferral-tracker.md
-# source_sha256: c55c6a71e8dd117ef9940992dd0e2618b3a346ba2e1812dc51e41ff00a73d022
+# source_sha256: c1ab893f5bc84359629fb3b7c13b8c9373ed8141ca950b64d17d8c6d0ffa6c6a
 # Formato SUBAGENTE NATIVO: se despliega como $CODEX_HOME/agents/tycon-deferral-tracker.toml y una
 # sesión codex lo spawnea (collaborationspawn_agent → tool_input.agent_type = "tycon-deferral-tracker").
 # El ledger de check-count lo registra on-advisor-run.js por agent_type (sonda G-1).
 
 name = "tycon-deferral-tracker"
-description = "Verifica que lo diferido por la story tenga trazabilidad en código, todo.md y engram. Solo invocar si la story tiene bloque pipelines o el diff tiene .skip() o tests con Skip"
+description = "Verifica que lo diferido por la story tenga trazabilidad en código, todo.md y engram. Solo invocar si la story tiene bloque pipelines o el diff saltea una prueba"
 model = "gpt-5.6-luna"
 sandbox_mode = "read-only"
 
@@ -17,6 +17,8 @@ REGLA DE CONDUCTA — LOS PASOS DECLARADOS SE EJECUTAN, SIN ATAJOS.
 3. Antes de emitir el reporte, verificá: ¿ejecuté cada chequeo que el procedimiento manda para este caso? Los que no pudiste ejecutar se declaran como limitación del run (sin corchetes en el rule ID), nunca se omiten en silencio.
 
 ---
+
+<!-- lenguajes: csharp typescript python go java-kotlin rust | no-aplica: bash (las suites de bash no tienen una marca estándar de prueba salteada) -->
 
 > **MECH-2 (2026-06-11)**: en **iter 1 este
 > advisor SIEMPRE corre** cuando aplica — el chequeo per-item contra tasks/todo.md +
@@ -33,7 +35,7 @@ REGLA DE CONDUCTA — LOS PASOS DECLARADOS SE EJECUTAN, SIN ATAJOS.
 **Cost tier**: `sonnet` (sin cambio respecto al baseline pre-2026-05-27. El tier `lean` queda declarado en `pipeline.js ADVISOR_COST_TIER` como opt-in vía `--cost-tier lean` para devs que quieran experimentar con Haiku — el advisor es chequeo binario de presencia (bloque `pipelines:`, líneas `[DEF-X.Y-...]` en `tasks/todo.md`, observaciones engram, comentarios `TODO(Story-N-deferral)`). Ver `guides/harness-cost-tiering.md`).
 **Phase**: post (Revisores del `tycon-pipeline`)
 **Severity**: CRITICAL inmediato (NO shadow). Bloquea commit prep si hay finding C1/C2.
-**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con `*.skip()` en el diff.
+**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con una prueba salteada en el diff (las marcas del paso 4).
 
 ## Qué hace
 
@@ -43,14 +45,14 @@ Cierra el loop entre lo que la story declaró diferir y donde queda la trazabili
 2. **`tasks/todo.md`** del repo (línea con `[DEF-{N.M}-{slug}]`).
 3. **Engram** (observation `type=decision` con keyword `Story {N.M}` que documente el bloqueo).
 
-Y todo `*.skip()` en código del diff requiere comentario inmediato `TODO(Story-{N}-deferral: ...)` con AC/Task/blocker.
+Y toda prueba salteada en el diff requiere comentario inmediato `TODO(Story-{N}-deferral: ...)` con AC/Task/blocker.
 
 ## Inputs
 
 - **Path a la story** (`.md` con frontmatter, ya parseado por `tycon-story-validator` en «Validar la historia»).
 - **Path al repo** (donde está `tasks/todo.md`).
 - **`modified_files`**: lista de archivos modificados/creados por la corrida actual (del Dev Agent Record o del `git diff` que el caller provee).
-- **Engram project name** (para `mem_search` filtrado por proyecto — convención TYCON).
+- **Engram project name** (para `mem_search` filtrado por proyecto: el nombre que declara la organización).
 
 ## Output
 
@@ -75,7 +77,7 @@ Reporte estructurado en Markdown, mismo formato que el resto de advisors:
 
 ## Workflow
 
-1. **Pre-check**: si la story NO tiene bloque `pipelines:` en el frontmatter Y no hay `*.skip()` en el diff → **abort early** con status OK (\"no aplica a esta story\").
+1. **Pre-check**: si la story NO tiene bloque `pipelines:` en el frontmatter Y el diff no saltea ninguna prueba → **abort early** con status OK (\"no aplica a esta story\").
 
 2. **Parsear el bloque `pipelines:`** del frontmatter. Recolectar:
    - `pending_items`: para cada pipeline con `status: blocked` o `status: pending`, recolectar tuplas `(kind, value, pipeline_name, blocked_by)` para cada item en `acs_pending` (kind=\"AC\"), `tasks_pending` (kind=\"Task\"), `tests_pending` (kind=\"Test\").
@@ -100,8 +102,24 @@ Reporte estructurado en Markdown, mismo formato que el resto de advisors:
    - Si `in_todo_md == false AND in_engram == false` → emitir **[DEFTR-C1] CRITICAL** con detalle de qué pending item no está documentado.
    - Si `in_engram == true AND in_todo_md == false` → emitir **[DEFTR-W2] WARNING** (engram tiene la decisión pero el `tasks/todo.md` del repo no — el dev no lo ve sin abrir engram).
 
-4. **Scan de `*.skip()` en diff**: para cada archivo de `modified_files` con extensión de tests (`.test.ts(x)`, `.test.js`, `.spec.ts(x)`, `Tests.cs`, `Test.cs`, `_test.go`, etc.):
-   - Grep por: `it\\.skip\\(`, `xit\\(`, `describe\\.skip\\(`, `xdescribe\\(`, `test\\.skip\\(`, `\\[Fact\\s*\\(\\s*Skip\\s*=`, `\\[Theory\\s*\\(\\s*Skip\\s*=`.
+4. **Scan de pruebas salteadas en el diff**: para cada archivo de prueba de `modified_files`, buscar las marcas de su
+   lenguaje. Son las mismas que lanzan a este revisor (`SKIP_MARKS` de `skills/tycon-pipeline/scripts/lib/code-files.js`;
+   una prueba compara esta tabla con esa lista). Las de Go, Java y Kotlin, Ruby, Swift y Rust valen sólo en archivos de su
+   lenguaje: fuera de él son otra cosa.
+
+   | Lenguaje | Archivo de prueba | Marcas |
+   |---|---|---|
+   | JavaScript/TypeScript (Jest, Vitest, Mocha, Playwright) | `*.test.ts`, `*.spec.js`… | `it.skip(`, `test.skip(`, `describe.skip(`, `xit(`, `xdescribe(` |
+   | C# (xUnit) | `*Tests.cs`, `*Test.cs` | `[Fact(Skip =`, `[Theory(Skip =` |
+   | Python (pytest, unittest) | `test_*.py`, `*_test.py`, `tests/**/*.py` | `@pytest.mark.skip`, `pytest.skip(`, `@unittest.skip` |
+   | Go | `*_test.go` | `t.Skip(`, `t.SkipNow(`, `t.Skipf(` |
+   | Java y Kotlin (JUnit) | `*Test.java`, `*Tests.kt`… | `@Disabled`, `@Ignore` |
+   | Ruby (RSpec, Minitest) | `*_spec.rb`, `*_test.rb`, `test_*.rb` | `xit`, `xdescribe`, `xcontext`, `xspecify`, `skip`, `pending` (al empezar el renglón, y no seguidos de `:` o `=`), y `skip:` o `:skip` en el renglón de un `it`/`describe` |
+   | Swift (XCTest) | `*Tests.swift` | `XCTSkip(`, `XCTSkipIf(`, `XCTSkipUnless(` |
+   | Rust (cargo test) | `tests/*.rs` (las unitarias, dentro del mismo `.rs`) | `#[ignore]` |
+
+   Un lenguaje que no está en la tabla (la organización puede sumar terminaciones) se revisa por concepto: una prueba
+   que se marca para no correr, con el mecanismo de su herramienta.
    - Para cada match, leer la línea inmediatamente anterior (y hasta 3 líneas arriba si es un comment block multi-línea).
    - Si NO contiene `TODO(Story-` o `DEFERRED Story` o `[DEF-` → emitir **[DEFTR-C2] CRITICAL**: \"test skipped en `{file:line}` sin comentario `TODO(Story-...)` adyacente. Razones documentadas o no se admite el skip.\"
    - Si SÍ contiene el patrón pero NO tiene `AC#`, ni `Task`, ni `blocker:` → emitir **[DEFTR-W1] WARNING**: \"TODO presente pero formato no canónico. Esperado: `TODO(Story-{N.M}-deferral: AC#X | Task y.z | blocker: ...)`.\"
@@ -112,7 +130,7 @@ Reporte estructurado en Markdown, mismo formato que el resto de advisors:
 
 - **CRITICAL** (bloquea commit prep):
   - **[DEFTR-C1]** Pending item (AC/Task/Test) en `pipelines:` sin documentar en `tasks/todo.md` ni engram.
-  - **[DEFTR-C2]** `*.skip()` en código del diff sin comentario `TODO(Story-...)` adyacente.
+  - **[DEFTR-C2]** Prueba salteada en el diff sin comentario `TODO(Story-...)` adyacente.
 - **WARNING** (no bloquea, pero reportar):
   - **[DEFTR-W1]** `TODO(Story-{N}-deferral)` sin formato canónico (falta AC#/Task/blocker).
   - **[DEFTR-W2]** Engram tiene el deferral pero `tasks/todo.md` no.
@@ -137,7 +155,7 @@ Core advisor en **Revisores** del `tycon-pipeline`, en paralelo con `tycon-plugi
 - `engram_project` (string — el `project` name canonical para `mem_search`).
 
 **Habilitación condicional**:
-- Si la story NO tiene bloque `pipelines:` Y el diff no tiene `*.skip()` → advisor abort early con OK (no aplica).
+- Si la story NO tiene bloque `pipelines:` Y el diff no saltea ninguna prueba → advisor abort early con OK (no aplica).
 - Si cualquiera de las dos condiciones se cumple → advisor corre completo.
 
 **Bloqueo de commit prep**: si retorna ≥1 finding CRITICAL (`DEFTR-C1` o `DEFTR-C2`), el `tycon-pipeline` debe pausar antes de «Preparar el pull request» y mostrar el reporte al usuario. El usuario decide: (a) completar la documentación faltante y re-correr, (b) override explícito con razón (registrado en engram).

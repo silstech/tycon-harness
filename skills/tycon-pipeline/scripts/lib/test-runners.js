@@ -2,7 +2,7 @@
 
 /**
  * test-runners.js — las herramientas de prueba que la puerta sabe correr además de las de siempre (.NET, Vitest, Jest,
- * `node --test` y las suites del arnés): las de fábrica (pytest, Go, Maven, Gradle, Karma, Playwright) y las que la organización
+ * `node --test` y las suites del arnés): las de fábrica (pytest, Go, Rust con cargo, Maven, Gradle, Karma, Playwright) y las que la organización
  * declara en `team-repos.json → stack.test_runners`.
  *
  * Todas se describen igual: qué archivo del proyecto las detecta, qué herramienta tiene que estar, qué comando corren,
@@ -48,10 +48,14 @@ function proyectoDePruebas(d) {
   return nombres.find((n) => /<PackageReference\b[^>]*\bInclude\s*=\s*"Microsoft\.NET\.Test\.Sdk"/i.test(lee(d, n) || '')) || null;
 }
 
-/** Las de fábrica, en orden. `detect(dir)` dice si el proyecto es de ese stack; `tool(dir)` qué binario tiene que estar. */
+/**
+ * Las de fábrica, en orden. `detect(dir)` dice si el proyecto es de ese stack; `tool(dir)` qué binario tiene que estar;
+ * `language`, qué lenguaje prueba (uno de `TESTED_LANGUAGES` de code-files.js).
+ */
 const FACTORY = Object.freeze([
   {
     name: 'pytest',
+    language: 'python',
     // un pyproject.toml cuenta si menciona pytest (su sección o la dependencia): uno de Poetry sin pruebas no es pytest
     detect: (d) => existe(d, 'pytest.ini') || existe(d, 'conftest.py')
       || /\bpytest\b/.test(lee(d, 'pyproject.toml') || '') || /\[tool:pytest\]/.test(lee(d, 'setup.cfg') || ''),
@@ -66,6 +70,7 @@ const FACTORY = Object.freeze([
   },
   {
     name: 'go',
+    language: 'go',
     detect: (d) => existe(d, 'go.mod'),
     tool: () => 'gotestsum',
     command: 'gotestsum --junitfile {results}/junit.xml -- -coverprofile={results}/cover.out ./...',
@@ -74,6 +79,7 @@ const FACTORY = Object.freeze([
   },
   {
     name: 'maven',
+    language: 'java-kotlin',
     detect: (d) => existe(d, 'pom.xml'),
     tool: () => 'mvn',
     command: 'mvn -B -q test',
@@ -84,6 +90,7 @@ const FACTORY = Object.freeze([
   },
   {
     name: 'gradle',
+    language: 'java-kotlin',
     detect: (d) => existe(d, 'build.gradle') || existe(d, 'build.gradle.kts'),
     tool: (d) => (existe(d, 'gradlew') ? './gradlew' : 'gradle'),
     // `cleanTest`: con la tarea «al día» o tomada del caché, Gradle no corre ni reescribe el reporte, y la corrida
@@ -93,7 +100,24 @@ const FACTORY = Object.freeze([
     coverage: { format: 'jacoco', path: 'build/reports/jacoco/test/jacocoTestReport.xml', alt: '*/build/reports/jacoco/test/jacocoTestReport.xml', optional: true, writtenDuringRun: true },
   },
   {
+    name: 'cargo',
+    language: 'rust',
+    detect: (d) => existe(d, 'Cargo.toml'),
+    // cargo-nextest corre las pruebas de cargo y deja el reporte JUnit si un perfil de su configuración lo pide. La
+    // configuración la escribe el comando en la carpeta de resultados (nunca la lee del repo) y reemplaza la del repo
+    // en esta corrida. Lo que guarda nextest va a esa misma carpeta: en un workspace de varios paquetes, el reporte no
+    // queda en la raíz mientras se lo busca en el paquete.
+    tool: () => 'cargo-nextest',
+    command: "printf '[store]\\ndir = \"{results}/nextest\"\\n[profile.arnes.junit]\\npath = \"junit.xml\"\\n' > {results}/nextest.toml && cargo llvm-cov nextest --config-file {results}/nextest.toml --profile arnes --lcov --output-path {results}/lcov.info",
+    // sin cargo-llvm-cov, las pruebas corren igual con nextest y la cobertura no se mide (es opcional)
+    commandFor: (d) => (enElPath('cargo-llvm-cov') ? null
+      : "printf '[store]\\ndir = \"{results}/nextest\"\\n[profile.arnes.junit]\\npath = \"junit.xml\"\\n' > {results}/nextest.toml && cargo nextest run --config-file {results}/nextest.toml --profile arnes"),
+    results: { format: 'junit', path: '{results}/nextest/arnes/junit.xml' },
+    coverage: { format: 'lcov', path: '{results}/lcov.info', optional: true },
+  },
+  {
     name: 'karma',
+    language: 'typescript',
     // Angular 15 o más nuevo ya no trae karma.conf.js: ng test arma la configuración solo
     detect: (d) => existe(d, 'karma.conf.js') || (esAngularCli(d) && /"karma"/.test(lee(d, 'package.json') || '')),
     tool: () => 'npx',
@@ -110,6 +134,7 @@ const FACTORY = Object.freeze([
   // Playwright: en una carpeta con Jest o Vitest y Playwright, las pruebas que se mutan son las de Jest o Vitest.
   {
     name: 'jest',
+    language: 'typescript',
     gate: false,
     // los mismos detectores del portón (la clave `jest` o un script `test` con jest), más su archivo de configuración
     detect: (d) => JEST_CONFIGS.some((f) => existe(d, f))
@@ -121,6 +146,7 @@ const FACTORY = Object.freeze([
   },
   {
     name: 'vitest',
+    language: 'typescript',
     gate: false,
     detect: (d) => VITEST_CONFIGS.some((f) => existe(d, f)) || /"vitest"/.test(lee(d, 'package.json') || ''),
     tool: () => 'node_modules/.bin/vitest',
@@ -131,6 +157,7 @@ const FACTORY = Object.freeze([
   },
   {
     name: 'dotnet',
+    language: 'csharp',
     gate: false,
     // un proyecto de pruebas: un .csproj de la carpeta que referencia Microsoft.NET.Test.Sdk
     detect: (d) => proyectoDePruebas(d) != null,
@@ -143,6 +170,7 @@ const FACTORY = Object.freeze([
     // las pruebas .js/.mjs/.cjs sin Jest ni Vitest: el chequeo las corre con `node --test` en la raíz del repo, como
     // siempre; no se detecta por carpeta
     name: 'node-test',
+    language: 'typescript',
     gate: false,
     detect: () => false,
     tool: () => 'node',
@@ -153,6 +181,7 @@ const FACTORY = Object.freeze([
   {
     // las pruebas de punta a punta de un front: con Vitest o Jest en la misma carpeta gana el de siempre (va antes)
     name: 'playwright',
+    language: 'typescript',
     detect: (d) => PLAYWRIGHT_CONFIGS.some((f) => existe(d, f)),
     tool: () => 'npx',
     // el reportero junit escribe donde dice la variable; el comando lo lanza bash, así que la variable va adelante
@@ -378,7 +407,7 @@ function detectorFiles(stack) {
   return [
     ...org,
     { file: 'pytest.ini', name: 'pytest' }, { file: 'conftest.py', name: 'pytest' }, { file: 'pyproject.toml', name: 'pytest' },
-    { file: 'setup.cfg', name: 'pytest' }, { file: 'go.mod', name: 'go' }, { file: 'pom.xml', name: 'maven' },
+    { file: 'setup.cfg', name: 'pytest' }, { file: 'go.mod', name: 'go' }, { file: 'Cargo.toml', name: 'cargo' }, { file: 'pom.xml', name: 'maven' },
     { file: 'build.gradle', name: 'gradle' }, { file: 'build.gradle.kts', name: 'gradle' }, { file: 'karma.conf.js', name: 'karma' },
     { file: 'angular.json', name: 'karma' },
     ...PLAYWRIGHT_CONFIGS.map((file) => ({ file, name: 'playwright' })),

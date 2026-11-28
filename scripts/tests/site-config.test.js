@@ -2582,7 +2582,8 @@ const REPO_SITIO = { platform: 'github', org: 'acme', repo: 'sitio' };
 const CODE_FILES = require(path.join(ROOT, 'skills', 'tycon-pipeline', 'scripts', 'lib', 'code-files.js'));
 const TEC_EXTRAS = { fabrica: RUNNERS.factoryTable(), internos: ['dotnet', 'vitest', 'jest', 'node'], reconocidas: CODE_FILES.byLanguage(), repos: [REPO_API, REPO_WEB, REPO_SITIO] };
 const GO_ORG = { name: 'go', detect: 'go.mod', command: 'go test ./...', results: { format: 'junit', path: '{results}/junit.xml' } };
-const CARGO = { name: 'cargo', detect: 'Cargo.toml', command: 'cargo nextest run', results: { format: 'junit', path: '{results}/junit.xml' } };
+// una herramienta que el núcleo no trae (Elixir): la agrega la organización
+const MIX = { name: 'mix', detect: 'mix.exs', command: 'mix test', results: { format: 'junit', path: '{results}/junit.xml' } };
 async function pantallaTec(borrador, idioma = 'es', respuesta = {}) {
   const sec = SEC('tecnologia', { repo: 'perfil', borrador, extras: TEC_EXTRAS });
   const r = await pantallaConPestanas({ secciones: [...TODAS.map((id) => SEC(id)), sec], idioma, hash: '#seccion-tecnologia', extras: respuesta });
@@ -2620,7 +2621,7 @@ test('T27 TeamRepos_StackKey_SinceVersion @story-8.48 @ac-27 @ac-33 — `stack` 
 
 test('T28 SiteConfig_StackSection_ShowsCurrentAndDefault @story-8.48 @ac-25 — lo de fábrica y lo de la organización, en castellano y en inglés', async () => {
   // 🔴 rojo: la sección no muestra los lenguajes que ya conoce, las herramientas con su origen o las reglas; o falta un idioma.
-  const con = await pantallaTec({ stack: { code_extensions: ['.ex'], test_runners: [GO_ORG, CARGO], rules: { test_names: 'pascal' } } });
+  const con = await pantallaTec({ stack: { code_extensions: ['.ex'], test_runners: [GO_ORG, MIX], rules: { test_names: 'pascal' } } });
   const t = con.texto();
   for (const re of [/Python/, /Svelte/, /pytest/, /de fábrica/, /cambiada por tu organización/, /agregada por tu organización/, /incluida en el arnés · no se edita/, /Vitest/]) assert.match(t, re);
   assert.ok(con.todos().some((n) => n.tag === 'input' && n.attrs.value === '.ex'), 'la terminación de la organización');
@@ -2632,7 +2633,7 @@ test('T28 SiteConfig_StackSection_ShowsCurrentAndDefault @story-8.48 @ac-25 — 
   assert.match(t, /Reemplazar/);
   const sin = await pantallaTec({});
   assert.match(sin.texto(), /no tenés que configurar nada/);
-  const en = await pantallaTec({ stack: { test_runners: [CARGO] } }, 'en');
+  const en = await pantallaTec({ stack: { test_runners: [MIX] } }, 'en');
   const te = en.texto();
   for (const re of [/built in/i, /added by your organization/i, /Ask your agent/]) assert.match(te, re);
   assert.doesNotMatch(te, /pantalla\./, 'ninguna clave sin traducir');
@@ -2691,14 +2692,14 @@ test('T30 SiteConfig_FactoryRunner_ChangeAndRevert @story-8.48 @ac-28 — «Camb
 test('T30b SiteConfig_RunnerTable_SameColumnsAndClearOrigin — todas las filas con las mismas columnas y el origen en palabras claras', async () => {
   // 🔴 rojo: las internas con una columna menos (la tabla queda corrida), las internas y las recetas con el mismo
   //    «de fábrica», o sin «Reemplazar» en las internas.
-  const p = await pantallaTec({ stack: { test_runners: [CARGO] } });
+  const p = await pantallaTec({ stack: { test_runners: [MIX] } });
   const fila = (n) => p.todos().find((x) => x.attrs['data-runner'] === n);
   const celdas = (n) => (fila(n).hijos || []).filter((x) => x.tag === 'span');
-  for (const n of ['dotnet', 'vitest', 'go', 'cargo']) assert.strictEqual(celdas(n).length, 4, `${n}: nombre, archivo, origen y acción`);
+  for (const n of ['dotnet', 'vitest', 'go', 'mix']) assert.strictEqual(celdas(n).length, 4, `${n}: nombre, archivo, origen y acción`);
   const origen = (n) => celdas(n)[2].textContent;
   assert.strictEqual(origen('dotnet'), 'incluida en el arnés · no se edita');
   assert.strictEqual(origen('go'), 'de fábrica · se puede cambiar');
-  assert.strictEqual(origen('cargo'), 'agregada por tu organización');
+  assert.strictEqual(origen('mix'), 'agregada por tu organización');
   // «Reemplazar» deja, en la fila, la frase para el agente (el detalle, en T30d)
   const reemplazar = (() => { const out = []; (function walk(x) { out.push(x); (x.hijos || []).forEach(walk); })(fila('dotnet')); return out.find((x) => x.tag === 'button'); })();
   assert.strictEqual(reemplazar.textContent, 'Reemplazar');
@@ -2959,8 +2960,8 @@ test('E1 SiteConfig_TuTecnologia_RendersInPage @story-8.48 @ac-25 @ac-28 @ac-36 
   assert.strictEqual((panel || { attrs: {} }).attrs.id, 'pestana-claude');
   const orden = []; const walk = (x) => { if (/^seccion-/.test(x.attrs.id || '')) orden.push(x.attrs.id); (x.hijos || []).forEach(walk); }; walk(panel);
   assert.deepStrictEqual(orden.slice(orden.indexOf('seccion-cobertura'), orden.indexOf('seccion-cobertura') + 2), ['seccion-cobertura', 'seccion-tecnologia']);
-  const p = await pantallaTec({ stack: { test_runners: [CARGO] } });
-  const carga = p.todos().find((n) => n.attrs['data-runner'] === 'cargo');
+  const p = await pantallaTec({ stack: { test_runners: [MIX] } });
+  const carga = p.todos().find((n) => n.attrs['data-runner'] === 'mix');
   assert.ok(carga, 'la agregada por la organización se ve');
   assert.ok(p.boton(/^Borrar esta herramienta$/), 'y se puede borrar');
   // el recorrido: cambiar una de fábrica (llega llena, con el aviso del comando), guardarla, y volver a la de fábrica
@@ -2970,9 +2971,9 @@ test('E1 SiteConfig_TuTecnologia_RendersInPage @story-8.48 @ac-25 @ac-28 @ac-36 
   assert.match(p.texto(), /va a correr este comando en su computadora/);
   assert.ok(p.todos().some((n) => n.attrs['data-path'] === 'runner.command' && /^gotestsum /.test(n.attrs.value)), 'el formulario llega lleno');
   p.boton(/^Guardar$/).on.click(); await p.esperar();
-  assert.deepStrictEqual((await p.revisado()).stack.test_runners.map((x) => x.name), ['cargo', 'go']);
+  assert.deepStrictEqual((await p.revisado()).stack.test_runners.map((x) => x.name), ['mix', 'go']);
   p.boton(/Volver a la de fábrica/).on.click(); await p.esperar();
-  assert.deepStrictEqual((await p.revisado()).stack.test_runners.map((x) => x.name), ['cargo'], 'volver deja la agregada');
+  assert.deepStrictEqual((await p.revisado()).stack.test_runners.map((x) => x.name), ['mix'], 'volver deja la agregada');
   p.boton(/Pedíselo a tu agente/).on.click(); await p.esperar();
   assert.match(p.texto(), /configurá las pruebas de mi proyecto/);
   // revisado y bien escrito: la pantalla dice que no se aplica solo, que se abre un pedido que alguien aprueba
