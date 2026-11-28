@@ -278,3 +278,33 @@ test('T-frases Session_FixedPhrases_InEnglish — lo que hace, espera o la frena
   const sinTraducir = [...frases].filter((f) => traducir(f) === f);
   assert.deepStrictEqual(sinTraducir, [], 'frases que quedan en castellano');
 });
+
+// 🔴 Falla con: en el tema claro, el rótulo de estado de cada sesión, su paso actual y los pendientes con el color
+// brillante pensado para el fondo oscuro: «Tu firma» 1,9:1, «Corriendo pruebas» 2,4:1 (recorrido del sitio del 27/11).
+// En claro el texto mezcla el color del estado con el del texto (--tinta, 50 %) y llega a 4,5:1; en oscuro va puro.
+test('T-claro LightTheme_StateTextsReadable — rótulo, paso actual y pendientes con 4,5:1 o más en claro', () => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const lum = (h) => { const [r, g, b] = hex(h).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contraste = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const mezcla = (a, b, p) => `#${hex(a).map((v, i) => Math.round((v * p + hex(b)[i] * (1 - p)) * 255).toString(16).padStart(2, '0')).join('')}`;
+  const raiz = /:root\{([^}]*)\}/.exec(HTML)[1];
+  const v = (n) => new RegExp(`--${n}:\\s*([^;]+);`).exec(raiz)[1].trim();
+  assert.strictEqual(v('tinta'), '50%', 'en claro, el texto de estado mezcla mitad y mitad');
+  const oscuros = HTML.match(/--tinta:\s*100%/g) || [];
+  assert.strictEqual(oscuros.length, 2, 'en oscuro (por el sistema y elegido a mano), puro');
+  assert.match(HTML, /\.card\{[^}]*--c-tinta:color-mix\(in srgb,var\(--c\) var\(--tinta\),var\(--fg\)\)/);
+  assert.match(HTML, /\.card \.st\{[^}]*color:var\(--c-tinta\)/);
+  assert.match(HTML, /\.card ol\.steps li\.now\{[^}]*color:var\(--c-tinta\)/);
+  assert.doesNotMatch(CODE, /st\.style\.color=s\[1\]/, 'el color del rótulo lo pone la hoja de estilos, no el código');
+  const AST = new Function(`${/const AST=(\{[^;]*\});/.exec(CODE)[0]} return AST;`)();
+  const pendiente = /ol\.steps li\{[^}]*color:(#[0-9a-f]{6})/.exec(HTML)[1];
+  // las tarjetas van sobre la superficie: la de la oficina y la del sitio en claro (scripts/site/static/site.css)
+  const fondos = [v('surface'), '#fcfcfb'];
+  for (const [estado, [, color]] of Object.entries(AST).concat([['pendiente', ['', pendiente]]])) {
+    for (const fondo of fondos) {
+      const c = contraste(mezcla(color, v('fg'), 0.5), fondo);
+      assert.ok(c >= 4.5, `${estado} sobre ${fondo}: ${c.toFixed(1)}:1`);
+    }
+  }
+});
