@@ -2335,6 +2335,12 @@ L = [lab(c) for c in R]
 for i in range(9):
     d = math.dist(L[i], L[i+1])
     assert d >= 15, 'los pasos %d y %d están a %.1f (menos de 15)' % (i, i+1, d)
+# cualquier par de pasos, no sólo los vecinos, a 20 o más: con 16, «Arranque» y «Validar la historia» eran dos celestes
+# casi iguales en la leyenda y en la barra de cada fila (A201)
+for i in range(10):
+    for j in range(i + 1, 10):
+        d = math.dist(L[i], L[j])
+        assert d >= 20, 'los pasos %d y %d están a %.1f (menos de 20)' % (i, j, d)
 tono = lambda l: math.degrees(math.atan2(l[2], l[1])) % 360
 dif = lambda a, b: min(abs(a - b), 360 - abs(a - b))
 # construir: Implementar e Implementar + pruebas (que nunca están en la misma ejecución) son una familia; Correr las
