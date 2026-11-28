@@ -638,3 +638,23 @@ test('OH18 SemanaIncompleta_SinFlechaYMarcada — la semana anterior con menos d
   assert.match(svg, /<title>[^<]*3 de 7 días medidos/);
   assert.strictEqual((svg.match(/class="incompleta"/g) || []).length, 2, 'en los dos gráficos, sólo la semana incompleta');
 });
+
+// A196: en el celular, los dos gráficos de «Las últimas 6 semanas» no se achican hasta que su letra no se lee. Se
+// dibujan en W y se ven en su ancho mínimo, dentro de una caja que se desliza: ningún rótulo baja de 9 px.
+test('A196 GraficosLegiblesEnElCelular — los rótulos de los gráficos por semana no bajan de 9 px en su ancho mínimo', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'tabs', 'workdays.js'), 'utf8');
+  const css = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'static', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const W = Number(/const W = (\d+);/.exec(src)[1]);
+  const minimo = /figure\.grafico svg\{[^}]*min-width:(\d+)px/.exec(css);
+  assert.ok(minimo, 'el gráfico tiene un ancho mínimo');
+  const clases = [...new Set([...src.matchAll(/<text class="([\w-]+)"/g)].map((m) => m[1]))];
+  assert.ok(clases.length, 'los gráficos tienen rótulos');
+  for (const k of clases) {
+    const letra = new RegExp(`figure\\.grafico \\.${k}\\{[^}]*font-size:(\\d+(?:\\.\\d+)?)px`).exec(css);
+    assert.ok(letra, `el rótulo ${k} tiene su tamaño`);
+    const px = Number(letra[1]) * Number(minimo[1]) / W;
+    assert.ok(px >= 9, `el rótulo ${k} baja a ${px.toFixed(1)} px en el celular`);
+  }
+  assert.match(src, /<div class="desliza" tabindex="0"><figure class="grafico">/, 'la caja del gráfico se desliza de costado');
+});

@@ -34,7 +34,7 @@ section{margin-top:40px}h2{font-size:clamp(18px,2.3vw,24px);letter-spacing:-.018
 .claves span{font-size:13px;line-height:1.5;color:var(--ink-2);text-wrap:pretty}.claves span b{font-family:inherit;font-size:inherit;letter-spacing:0;text-transform:none;color:var(--ink)}
 .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:17px 19px 13px;margin-top:13px}
 .card h3{margin:0 0 4px;font-size:14.5px;font-weight:600}.card p{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
-.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(390px,1fr))}
+.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr))}
 .pasos{display:flex;flex-direction:column;gap:4px;margin-top:10px}
 .pfila{display:grid;grid-template-columns:210px 1fr 74px 96px;gap:9px;align-items:center;font-size:12px}
 .pfila .pn{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pfila .pn b{font-family:"IBM Plex Mono",monospace;color:var(--ink-3);margin-right:5px}
@@ -88,6 +88,8 @@ tr.abierta td{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)
 .det-chips{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .cerrar{font-family:"IBM Plex Mono",monospace;font-size:11px;background:none;border:1px solid var(--line-strong);color:var(--ink-2);padding:3px 8px;cursor:pointer}
 .tl{background:var(--surface);border:1px solid var(--line);padding:10px 8px 4px;overflow-x:auto}
+/* en una pantalla angosta los dos gráficos se deslizan de costado en vez de achicarse hasta que la letra no se lee */
+#gsem,#gpasos{overflow-x:auto}
 .tlleg{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:9px;font-size:11.5px;color:var(--ink-2)}
 .lgi{display:inline-flex;align-items:center;gap:6px}.lgi svg{flex:none}.lgi b{color:var(--ink)}
 .tlnota{font-size:12px;line-height:1.5;color:var(--ink-3);margin:9px 0 0;text-wrap:pretty}
