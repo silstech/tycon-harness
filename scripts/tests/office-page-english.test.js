@@ -290,10 +290,14 @@ test('T-claro LightTheme_StateTextsReadable — rótulo, paso actual y pendiente
   const mezcla = (a, b, p) => `#${hex(a).map((v, i) => Math.round((v * p + hex(b)[i] * (1 - p)) * 255).toString(16).padStart(2, '0')).join('')}`;
   const raiz = /:root\{([^}]*)\}/.exec(HTML)[1];
   const v = (n) => new RegExp(`--${n}:\\s*([^;]+);`).exec(raiz)[1].trim();
-  assert.strictEqual(v('tinta'), '50%', 'en claro, el texto de estado mezcla mitad y mitad');
-  const oscuros = HTML.match(/--tinta:\s*100%/g) || [];
-  assert.strictEqual(oscuros.length, 2, 'en oscuro (por el sistema y elegido a mano), puro');
-  assert.match(HTML, /\.card\{[^}]*--c-tinta:color-mix\(in srgb,var\(--c\) var\(--tinta\),var\(--fg\)\)/);
+  // lo mira en los estilos que el sitio pone en su armazón (siteParts), no en los de la página local: la revisión en
+  // navegador encontró la variable en el bloque que el sitio no lleva, y en el sitio el rótulo perdía su color
+  const PARTS = require(path.join(OFFICE_DIR, 'page-parts.js'));
+  const delSitio = PARTS.siteParts({ source: 'site', urlOf: (k) => `/m/${k}.js`, script: '/offices/page.js' }).style;
+  assert.match(delSitio, /:root\{--tinta:50%\}/, 'en claro, el texto de estado mezcla mitad y mitad');
+  assert.strictEqual((delSitio.match(/--tinta:100%/g) || []).length, 2, 'en oscuro (por el sistema y elegido a mano), puro');
+  assert.match(delSitio, /\.contenido-oficina\{--fg:var\(--ink\)/, 'y el color del texto del sitio, para mezclar');
+  assert.match(delSitio, /\.card\{[^}]*--c-tinta:color-mix\(in srgb,var\(--c\) var\(--tinta\),var\(--fg\)\)/);
   assert.match(HTML, /\.card \.st\{[^}]*color:var\(--c-tinta\)/);
   assert.match(HTML, /\.card ol\.steps li\.now\{[^}]*color:var\(--c-tinta\)/);
   assert.doesNotMatch(CODE, /st\.style\.color=s\[1\]/, 'el color del rótulo lo pone la hoja de estilos, no el código');

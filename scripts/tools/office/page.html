@@ -10,15 +10,12 @@
    el sitio la pestaña va dentro de su armazón, con sus colores y su tipografía, y lleva sólo los de abajo. */
 :root{
   --bg:#f5f6f4; --surface:#ffffff; --fg:#1d2321; --muted:#5d6763; --line:#dde2df; --accent:#1f6f5c;
-  /* el texto de estado de una sesión: en claro mezcla el color del estado con el del texto (los colores son brillantes,
-     para el fondo oscuro); en oscuro va puro */
-  --tinta:50%;
   --display:system-ui,-apple-system,"Segoe UI",sans-serif; --body:system-ui,-apple-system,"Segoe UI",sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#141917; --surface:#1c2220; --fg:#e6ebe8; --muted:#9aa5a0; --line:#2c3431; --accent:#5cc0a3; --tinta:100%; color-scheme:dark}}
+  --bg:#141917; --surface:#1c2220; --fg:#e6ebe8; --muted:#9aa5a0; --line:#2c3431; --accent:#5cc0a3; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#141917; --surface:#1c2220; --fg:#e6ebe8; --muted:#9aa5a0; --line:#2c3431; --accent:#5cc0a3; --tinta:100%; color-scheme:dark}
+  --bg:#141917; --surface:#1c2220; --fg:#e6ebe8; --muted:#9aa5a0; --line:#2c3431; --accent:#5cc0a3; color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);padding:24px 16px 48px}
 main{max-width:1600px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;border-bottom:2px solid var(--fg);padding-bottom:12px}
@@ -29,6 +26,12 @@ h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;c
 <style id="estiloOficina">
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+/* el texto de estado de una sesión: en claro mezcla el color del estado con el del texto (los colores son brillantes, para
+   el fondo oscuro); en oscuro va puro. Acá y no en los estilos de página: el sitio sólo lleva este bloque, y los selectores
+   del tema son los mismos en la página local y en el sitio */
+:root{--tinta:50%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--tinta:100%}}
+:root[data-theme="dark"]{--tinta:100%}
 /* en el sitio: los colores y la tipografía del sitio, con los nombres que usa la oficina */
 .contenido-oficina{--fg:var(--ink);--display:var(--sans);--body:var(--sans);--mono:ui-monospace,Menlo,Consolas,monospace;display:flex;flex-direction:column;gap:20px}
 .contenido-oficina h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
