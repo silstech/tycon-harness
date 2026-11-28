@@ -300,15 +300,17 @@ test('T7 Noche_SinFuentes_IgualQueHoy @story-1.6 @ac-5', async () => {
   }
 });
 
-test('T8 Github_PruebasDeHoyPasan @story-1.6 @ac-5', () => {
+test('T8 Github_PruebasDeHoyPasan @story-1.6 @ac-5', (t) => {
   const a = spawnSync(process.execPath, ['--test', path.join(ROOT, 'scripts', 'tests', 'operations-github-workflows.test.js')], { encoding: 'utf8', cwd: ROOT });
   assert.strictEqual(a.status, 0, a.stdout.slice(-3000));
   const b = spawnSync('bash', [path.join(ROOT, 'scripts', 'tests', 'open-pr-per-finding-github.test.sh')], { encoding: 'utf8', cwd: ROOT });
   assert.strictEqual(b.status, 0, (b.stdout + b.stderr).slice(-3000));
   // sin cambiar una línea respecto de main, salvo la lista de secretos permitidos, que suma HARNESS_SOURCE_CREDENTIALS
   // (un secreto nuevo se autoriza a la vista, en la lista, nunca en silencio)
-  const base = spawnSync('git', ['merge-base', 'HEAD', baseRef()], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
-  if (base) {
+  const base = baseDelDiff();
+  // sin base, la comparación con main no se hizo: no medido, nunca verde
+  if (!base) t.skip('no medido: no hay base para comparar con main (ni TYCON_DIFF_BASE, ni rama de arriba, ni origin/main, ni main)');
+  else {
     const d = spawnSync('git', ['diff', '-U0', base, '--', 'scripts/tests/operations-github-workflows.test.js', 'scripts/tests/open-pr-per-finding-github.test.sh'], { cwd: ROOT, encoding: 'utf8' });
     const cambiadas = d.stdout.split('\n').filter((l) => /^[+-](?![+-])/.test(l));
     assert.ok(cambiadas.length <= 4 && cambiadas.filter((l) => l.startsWith('+')).every((l) => l.includes('HARNESS_SOURCE_CREDENTIALS')), `sólo la lista de secretos:\n${cambiadas.join('\n')}`);
@@ -546,7 +548,7 @@ test('T16 Secreto_MascaraYJsonMalEscrito @story-1.6 @ac-10', async () => {
   assert.match(r.out, /^::add-mask::/m);
 });
 
-test('T17 Nucleo_SinNombresNuevos @story-1.6 @ac-11', () => {
+test('T17 Nucleo_SinNombresNuevos @story-1.6 @ac-11', (t) => {
   const { core } = require(path.join(ROOT, 'scripts', 'ci', 'check-core-neutrality.js'));
   // los nombres de plataforma: los de los manifiestos de los conectores de plataforma
   const names = fs.readdirSync(path.join(ROOT, 'integrations')).map((n) => {
@@ -558,6 +560,8 @@ test('T17 Nucleo_SinNombresNuevos @story-1.6 @ac-11', () => {
   assert.deepStrictEqual(nombresNuevos(lab('guides/integrations/x.md', 'GitLab y GitHub'), names, core), []);
   // el diff real de la historia
   const real = diffReal();
+  // sin base no hay diff que mirar: no medido, nunca verde
+  if (real === null) { t.skip('no medido: no hay base para el diff (ni TYCON_DIFF_BASE, ni rama de arriba, ni origin/main, ni main)'); return; }
   const malos = nombresNuevos(real, names, core);
   assert.deepStrictEqual(malos, [], malos.map((x) => `${x.archivo}: ${x.linea}`).join('\n'));
   const neutral = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'ci', 'check-core-neutrality.js'), '--repo', ROOT], { cwd: ROOT, encoding: 'utf8' });
@@ -1140,17 +1144,27 @@ test('T39 Dependencias_RepoDeFuenteNoSeDiceFueraDeLaLista @story-1.6 @ac-8', () 
 
 // ── el diff de la historia (AC11) ────────────────────────────────────────────────────────────────────────────────────
 
-/** La rama contra la que se compara: la que sigue la rama actual, o main. */
-function baseRef() {
-  if (process.env.TYCON_DIFF_BASE) return process.env.TYCON_DIFF_BASE;
+/**
+ * La base del diff: TYCON_DIFF_BASE, o la primera que dé un merge-base entre la rama que sigue la actual, origin/main
+ * (en la CI el checkout es el commit de la mezcla: no hay rama de arriba ni main local) y main. null si no hay ninguna.
+ */
+function baseDelDiff() {
+  const cand = [];
+  if (process.env.TYCON_DIFF_BASE) cand.push(process.env.TYCON_DIFF_BASE);
   const u = spawnSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: ROOT, encoding: 'utf8' });
-  return u.status === 0 && u.stdout.trim() ? u.stdout.trim() : 'main';
+  if (u.status === 0 && u.stdout.trim()) cand.push(u.stdout.trim());
+  cand.push('origin/main', 'main');
+  for (const ref of cand) {
+    const b = spawnSync('git', ['merge-base', 'HEAD', ref], { cwd: ROOT, encoding: 'utf8' });
+    if (b.status === 0 && b.stdout.trim()) return b.stdout.trim();
+  }
+  return null;
 }
 
-/** El diff de la historia contra su base (lo commiteado y lo que no), con los archivos nuevos sin seguimiento. */
+/** El diff de la historia contra su base (lo commiteado y lo que no), con los archivos nuevos sin seguimiento; null sin base. */
 function diffReal() {
-  const base = spawnSync('git', ['merge-base', 'HEAD', baseRef()], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
-  assert.ok(base, 'sin base para el diff');
+  const base = baseDelDiff();
+  if (!base) return null;
   let d = spawnSync('git', ['diff', '-U0', base], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 }).stdout;
   const nuevos = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
   for (const f of nuevos) {
