@@ -44,7 +44,6 @@ const {
   cleanStaleHeartbeats,
   cleanEmptyActiveFiles,
   mcpTool,
-  sessionFilePath,
   stateMissing,
 } = require('./lib');
 // el estado lo escribe el comando de la integración: a mano, el freno de la carpeta del estado lo para

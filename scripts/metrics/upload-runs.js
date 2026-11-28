@@ -517,11 +517,14 @@ function negativaDeLaLlave(sas) {
 function negativaDeLaLlaveDe(cfg) {
   return esDeAzure(cfg) ? negativaDeLaLlave(cfg.sas) : null;
 }
-/** El último archivo que esta máquina subió a este destino (su nombre en el buzón), para la sonda de lectura, o null. */
+/**
+ * El último archivo que esta máquina subió a este destino (su nombre en el buzón), para la sonda de lectura, o null.
+ * Quien la llama ya validó el nombre de la máquina y leyó el registro (con `archivos` siempre presente).
+ */
 function subidoConocido(registro, maquina) {
   let mejor = null;
-  for (const e of Object.values((registro && registro.archivos) || {})) {
-    if (!e || typeof e.blob !== 'string' || !maquina || !e.blob.startsWith(`${maquina}/`)) continue;
+  for (const e of Object.values(registro.archivos || {})) {
+    if (!e || typeof e.blob !== 'string' || !e.blob.startsWith(`${maquina}/`)) continue;
     if (!mejor || String(e.subido || '') > String(mejor.subido || '')) mejor = e;
   }
   return mejor ? mejor.blob : null;
