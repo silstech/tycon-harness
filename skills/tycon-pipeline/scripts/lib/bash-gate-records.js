@@ -25,12 +25,97 @@ const { resolveSessionId } = require('./session-id.js');
 // da rutas falsas — la cabecera de command-vars.js dice por qué.)
 const { expandirRuta } = require('./command-vars.js');
 const { GUION_ESCRIBE, NOMBRA_RUTA_DE_HISTORIA, logHookError } = require('./bash-gate-net.js');
-const { BORRA_O_MUEVE, CORRE_ARCHIVO, PREFIJO, TOPE_ANIDADOS, expandirLlaves, nativePath, palabras, recorrerCarpetaDeCd, sinEscapesDeComillas } = require('./bash-gate-words.js');
+const { BORRA_O_MUEVE, CORRE_ARCHIVO, PREFIJO, TOPE_ANIDADOS, variantesConSeparador, expandirLlaves, nativePath, palabras, recorrerCarpetaDeCd, sinEscapesDeComillas } = require('./bash-gate-words.js');
 const { CD_DEL_TRAMO, conCarpetasNombradas, conCarpetasPorTramo } = require('./bash-gate-folders.js');
-const { ESCRIBE, HEREDOC_ENTERO, LECTORES_DE_XARGS, OPCIONES_CON_VALOR, REDIRECCION, SHELLS_QUE_LEEN_COMANDOS, TOPE_DE_CARPETAS_DE_CD, algunOpenEscribe, argumentosDeCopia, citados, constanciasDeOtraRama, contenidoDelArchivo, dentroDeUnRepo, destinoDeLaCopia, ejecutaTexto, ensayarSeds, estadoDeHistoria, estadosDelEncabezado, expandirComodin, mdAdentro, nombreDeComando, nombresDeConstancia, palabraDelShell, palabrasEnteras, parcheNombraConstancia, parchesDePatch, pelarEnv, posicionales, posicionesFueraDeComillas, resolveTarget, sinCierreDeGrupo, sinComillasPegadas, sinPalabrasDelShell, sinRedireccionesDeSalida } = require('./bash-gate-expansions.js');
+const { ESCRIBE, HEREDOC_ENTERO, LECTORES_DE_XARGS, OPCIONES_CON_VALOR, REDIRECCION, SHELLS_QUE_LEEN_COMANDOS, TOPE_DE_CARPETAS_DE_CD, algunOpenEscribe, argumentosDeCopia, citados, constanciasDeOtraRama, contenidoDelArchivo, dentroDeUnRepo, ejecutaTexto, ensayarSeds, estadoDeHistoria, expandirComodin, mdAdentro, nombreDeComando, nombresDeConstancia, palabraDelShell, palabrasEnteras, pelarEnv, posicionales, posicionesFueraDeComillas, resolveTarget, sinCierreDeGrupo, sinPalabrasDelShell, sinRedireccionesDeSalida } = require('./bash-gate-expansions.js');
 const { carpetasDeLosCd, carpetasDeLosCdDeConstancias, destinosArmados, extractWriteTargets, heredocs, quitarCuerposDeHeredoc, scriptsInline, tramos } = require('./bash-gate-targets.js');
 const { FOR_IN, anidadosHasta, carpetasDelComando, cdInicial, comandosAnidados, comandosPorOtroPrograma, cwdDelComando, destinosBorrados, destinosDeCopia, destinosDeGuionDeSed, editaEnSitio, guionesDeShellEscritos, guionesDeShellEnDisco, movidosFueraDeMd, palabrasDelEditor, sedsLiterales, sinCuerposDeTexto, todoCorreDespuesDelCd } = require('./bash-gate-commands.js');
 const { cdSinResolver, conLosCdDeSiempre, destinosDeLaCoordinadora, destinosResueltos, palabrasDelBucleSiFueraSoloSeLee, sinMayoresQueNoRedirigen } = require('./bash-gate-scripts.js');
+
+// las cinco de abajo sólo las usa este módulo: viven acá para que bash-gate-expansions.js quede debajo del tope de tamaño
+
+/** Los `status:` del encabezado de una historia, en orden (vacío sin encabezado). */
+function estadosDelEncabezado(texto) {
+  const fm = /^﻿?---\r?\n([\s\S]*?)\r?\n---/.exec(String(texto));
+  return fm ? [...fm[1].matchAll(/^["']?status["']?\s*:\s*["']?([\w-]+)/gm)].map((m) => m[1].toLowerCase()) : [];
+}
+
+/**
+ * El destino y los orígenes de una copia:el de `-t`/`--target-directory` (siempre una carpeta, en los comandos donde
+ * `-t` es eso: en `rsync` es otra cosa), o el último argumento.
+ */
+function destinoDeLaCopia(args, conT) {
+  let t = null;
+  const sueltos = [];
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i];
+    if (w === '--target-directory' || (conT && w === '-t')) { t = args[++i]; continue; }
+    const pegado = conT ? /^(?:--target-directory=|-t)(.+)$/.exec(w) : /^--target-directory=(.+)$/.exec(w);
+    if (pegado) { t = pegado[1]; continue; }
+    if (w.startsWith('-') || w.startsWith('<')) continue;
+    sueltos.push(w);
+  }
+  if (t) return { destino: t, origenes: sueltos, carpeta: true };
+  if (sueltos.length < 2) return null;
+  return { destino: sueltos[sueltos.length - 1], origenes: sueltos.slice(0, -1), carpeta: false };
+}
+
+/** Los archivos de parche de un `patch`: el de `-i`/`--input`, o el segundo argumento suelto (el primero es el que se parcha). */
+function parchesDePatch(args) {
+  const out = [];
+  const sueltos = [];
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i];
+    if (w === '-i' || w === '--input') { if (args[i + 1]) out.push(args[++i]); continue; }
+    const pegado = /^(?:--input=|-i)(.+)$/.exec(w);
+    if (pegado) { out.push(pegado[1]); continue; }
+    // las opciones de `patch` que llevan su valor aparte no son el archivo a parchar
+    if (/^-[pdoDrBVYzFgx]$/.test(w)) { i++; continue; }
+    if (!w.startsWith('-') && !w.startsWith('<')) sueltos.push(w);
+  }
+  if (sueltos.length >= 2) out.push(sueltos[1]);
+  return out;
+}
+
+/** ¿El texto de un parche nombra una constancia? Con las rutas que git escribe entre comillas y con escapes octales. */
+function parcheNombraConstancia(texto, isControlApproval) {
+  const t = String(texto).replace(/\\([0-7]{3})/g, (_, o) => String.fromCharCode(parseInt(o, 8)));
+  if (/control-changes|exemptions\.jsonl/i.test(t)) return true;
+  const rutas = [];
+  for (const linea of t.split(/\r?\n/)) {
+    let m = /^diff --git "?a\/(.+?)"? "?b\/(.+?)"?$/.exec(linea);
+    if (m) { rutas.push(m[1], m[2]); continue; }
+    m = /^(?:\+\+\+|---)\s+"?(?:[ab]\/)?([^"\t]+)"?/.exec(linea) || /^(?:rename|copy) (?:from|to) (.+)$/.exec(linea);
+    if (m) rutas.push(m[1].trim());
+  }
+  return rutas.some((r) => isControlApproval(r));
+}
+
+/**
+ * El comando con las comillas pegadas en medio de una palabra resueltas, como las deja el shell: `sp""ecs/h.md` y
+ * `specs/"h".md` son `specs/h.md`. Sólo las que van fuera de otras comillas, pegadas a la palabra por algún lado y con un
+ * texto sin espacios ni caracteres del shell adentro; lo demás queda como está. Las de una opción (`sed -i''`) también:
+ * ahí la forma escrita decide cómo la lee el programa.
+ */
+function sinComillasPegadas(cmd) {
+  const s = String(cmd);
+  const deLaPalabra = (ch) => ch !== undefined && !/[\s'"`;&|<>()]/.test(ch);
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\\') { out += ch + (s[i + 1] ?? ''); i++; continue; }
+    if (ch !== "'" && ch !== '"') { out += ch; continue; }
+    let j = i + 1;
+    if (ch === "'") { while (j < s.length && s[j] !== "'") j++; } else { while (j < s.length && s[j] !== '"') j += s[j] === '\\' ? 2 : 1; }
+    if (j >= s.length) { out += s.slice(i); break; }
+    const adentro = s.slice(i + 1, j);
+    const pegada = deLaPalabra(s[i - 1]) || deLaPalabra(s[j + 1]);
+    const deUnaOpcion = /(?:^|[\s;&|<>()])-[^\s;&|<>()]*$/.test(out);
+    out += pegada && !deUnaOpcion && /^[^\s'"`$\\;&|<>(){}*?[\]!#~]*$/.test(adentro) ? adentro : s.slice(i, j + 1);
+    i = j;
+  }
+  return out;
+}
 
 // la familia de vi redefinida por una función o un alias, o con las variables que le dan órdenes al arrancar
 // (o el `PATH`/`HOME` de dónde lo busca y qué lee al arrancar, también citados: `export "VIMINIT"=…`)
@@ -793,12 +878,19 @@ function historiasPorConsola(cmd, cwd, targets, sesion = cwd, destinosConComodin
 // los guiones del arnés que corre la coordinadora escriben su estado.
 function coordinadoraPorConsola(event, opts = {}) {
   if (event?.tool_name && event.tool_name !== 'Bash' && event.tool_name !== 'PowerShell') return null;
+  // (las lecturas de más del freno, las del `;` de `variantesConSeparador`, no vuelven a juzgar: el click del dueño a un
+  // comando exacto vale una vez, y acá ya se leyeron todas)
+  if (event?.comandoTalCual != null) return null;
   const original = event?.tool_input?.command;
   if (!original) return null;
-  const cmd = sinMayoresQueNoRedirigen(original);
   const baseCwd = nativePath(event?.cwd || process.cwd());
   const archivos = () => {
     const out = [];
+    // tal cual y con el `;` detrás de los `for ((…))`
+    for (const cmd of new Set([original, ...variantesConSeparador(original)].map(sinMayoresQueNoRedirigen))) archivosDe(cmd, out);
+    return [...new Set(out)];
+  };
+  const archivosDe = (cmd, out) => {
     const soloAbsolutos = cdSinResolver(cmd);
     const absoluta = (raw) => {
       const v = String(expandirRuta(cmd, raw).valor);
@@ -831,7 +923,6 @@ function coordinadoraPorConsola(event, opts = {}) {
         if (abs) out.push(abs);
       }
     }
-    return [...new Set(out)];
   };
   return require(path.join(__dirname, '..', '..', '..', '..', 'scripts', 'lib', 'coordination-writes.js')).judge({
     sessionId: event.session_id, files: archivos, home: opts.home, stateDir: opts.stateDir, installedRoots: opts.installedRoots,
