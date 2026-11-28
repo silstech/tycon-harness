@@ -154,7 +154,8 @@ test('T10 2.33-Sitio_CartelSoloMantenedores @story-2.33 @ac-7 — quien mantiene
         assert.match(r.texto, /cómo se actualiza: <a href="https:\/\/github\.example\/acme\/arnes\/blob\/main\/guides\/organization-site\.md#c%C3%B3mo-se-mantiene-al-d%C3%ADa">/, `${ruta}: el modo`);
       }
       const arnes = (await h.pedir('/arnes', { cookie: lead })).texto;
-      assert.match(arnes, /Última publicada<\/span><span class="estado">2026\.10\.18\.9 \(del 2026-10-18\)/);
+      // la fecha de la imagen viaja como <time>: la página la dice en la hora de quien mira
+      assert.match(arnes, /Última publicada<\/span><span class="estado">2026\.10\.18\.9 · imagen armada el <time datetime="2026-10-18T[0-9:.]+Z" data-forma="fecha">2026-10-18 UTC<\/time>/);
       const ana = await entrar(A);
       const r = await h.pedir('/', { cookie: ana });
       assert.strictEqual(r.status, 200);

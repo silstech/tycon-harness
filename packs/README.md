@@ -18,3 +18,7 @@ Un paquete también puede traer reglas que el asistente tiene que tener siempre 
 `packs/<nombre>/claude-md-blocks/`. Se escriben en las reglas del asistente de cada persona (`~/.claude/CLAUDE.md` y,
 con Codex, `~/.codex/AGENTS.md`) mientras la organización activa el paquete, y se van solas cuando deja de activarlo.
 El detalle, en la misma sección.
+
+Y puede traer notas para los revisores del núcleo (`packs/<nombre>/reviewer-notes/<revisor>.md`): cómo se aplican sus
+reglas en el stack del paquete. Con el paquete activo en un repo, cada nota le llega a su revisor en el contexto de la
+vuelta. También en la misma sección.

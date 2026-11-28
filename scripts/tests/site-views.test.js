@@ -254,7 +254,8 @@ test('T13 2.36-Arnes_SinEnlaceConSello @story-2.36 @ac-9 — Arnés no enlaza la
   const modelo = modeloCompleto({ tablero: leida({ sello: { generado: `${HOY}T06:00:00Z`, completo: true } }) });
   const html = views.paginaArnes({ modelo: access.filtrar(modelo, { rol: 'maintainer' }, access.crearReglas({})), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA });
   assert.doesNotMatch(html, /\/arnes\/tablero/, 'sin enlace a la página vieja');
-  assert.match(html, new RegExp(`${HOY} · completa`), 'el sello dice si el nocturno corrió, con su fecha');
+  // la fecha del sello va en la hora de quien mira: el instante viaja en <time>, con el día en UTC como texto de reserva
+  assert.match(html, new RegExp(`data-forma="fecha">${HOY} UTC</time> · completa`), 'el sello dice si el nocturno corrió, con su fecha');
   assert.strictEqual(views.tableroServido, undefined, 'la vista que servía la página ya no existe');
 });
 
@@ -506,6 +507,29 @@ test('8.101-Retrospectivas_SinFotoComoHoy_ConFotoSeVe', () => {
   assert.strictEqual(r.valor, 2);
 });
 
+// Inicio_Retrospectivas_LlevanASuLista
+// 🔴 Falla con: la ficha de retrospectivas pendientes que pide decidir sin adónde ir (sin enlace ni lista abajo), una
+// lista sin el merge de cada una, o un merge que no es un sha que entra al HTML.
+test('Inicio_Retrospectivas_LlevanASuLista — la ficha lleva a la lista de abajo, con el repo, el merge y cómo se hace', () => {
+  const RETROS = `.dashboard/retros/retros-${HOY}.json`;
+  const pendientes = [{ repo: 'Producto-X/FrontEnd', merge: 'abc1234', dias: 2 }, { repo: 'Producto-Y/Backend', merge: '<b>x</b>', dias: 1 }];
+  const modelo = modeloDesde({ [RETROS]: { v: 1, fecha: HOY, estado: 'medido', pendientes } });
+  assert.strictEqual(fila(filasDe(modelo), 'retrospectivas').enlace, '#retros-pendientes', 'la ficha lleva a su lista');
+  const html = views.paginaInicio({ modelo: deMantenedor(modelo), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA });
+  assert.match(tarjetaDe(html, 'Retrospectivas pendientes'), /href="#retros-pendientes"/);
+  const seccionRetros = (html.split('id="retros-pendientes"')[1] || '').split('</section>')[0];
+  assert.ok(seccionRetros, 'la lista está en la página');
+  const texto = sinEtiquetas(seccionRetros);
+  assert.match(texto, /Producto-X\/FrontEnd · merge abc1234 · 2 días/);
+  assert.match(texto, /Producto-Y\/Backend · 1 día/, 'un merge que no es un sha no se muestra');
+  assert.doesNotMatch(seccionRetros, /<b>x<\/b>/);
+  assert.match(texto, /máquina de quien mergeó/, 'dice dónde se hace');
+  // sin la foto de hoy no hay lista ni enlace: la ficha sigue gris con su motivo
+  const sin = modeloDesde({});
+  assert.strictEqual(fila(filasDe(sin), 'retrospectivas').enlace, null);
+  assert.doesNotMatch(views.paginaInicio({ modelo: deMantenedor(sin), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA }), /id="retros-pendientes"/);
+});
+
 // Inicio_Vulnerabilidades_DicenSeguimiento
 // 🔴 Falla con: un recuadro de lo que sólo se sigue (las rechazadas sin deuda, que cada equipo sigue en su tarea) que diga
 // «decidir», o las dependencias por decidir, que se deciden en Mantenimiento, diciendo «seguimiento».
@@ -556,7 +580,13 @@ test('T4 2.79-Vulnerabilidades_CadaCuentaDiceQueCuenta @story-2.79 @ac-4 — Ini
 test('T14 2.79-Arnes_UltimaPublicada_DiceCuandoSeMiro @story-2.79 @ac-12 — «stable (mirada HH:MM)»', async () => {
   const ultima = { estado: 'medido', version: '2026.10.15.3', creada: '2026-10-14T20:00:00Z', mirado: Date.parse('2026-10-15T09:41:00Z') };
   const l = views.filasArnes({}, { version: '2026.10.15.1', ultima }).find((x) => x.clave === 'ultima');
-  assert.match(l.texto, /^2026\.10\.15\.3 \(del 2026-10-14\) · última publicada en stable \(mirada 09:41 UTC\)$/);
+  // los dos momentos viajan como marcas que layout() cambia por <time>, en la hora de quien mira
+  const W = require(path.join(__dirname, '..', 'site', 'when.js'));
+  assert.strictEqual(l.texto, `2026.10.15.3 · imagen armada el ${W.marca('2026-10-14T20:00:00Z', 'fecha')} · la más nueva del canal estable (mirada a las ${W.marca(Date.parse('2026-10-15T09:41:00Z'), 'hora')})`);
+  assert.strictEqual(W.conMomentos(l.texto), `2026.10.15.3 · imagen armada el ${W.momento('2026-10-14T20:00:00Z', { forma: 'fecha' })} · la más nueva del canal estable (mirada a las ${W.momento('2026-10-15T09:41:00Z', { forma: 'hora' })})`);
+  // sin la hora en que se miró, la frase no la nombra
+  const sinHora = views.filasArnes({}, { version: '2026.10.15.1', ultima: { ...ultima, mirado: null } }).find((x) => x.clave === 'ultima');
+  assert.strictEqual(sinHora.texto, `2026.10.15.3 · imagen armada el ${W.marca('2026-10-14T20:00:00Z', 'fecha')} · la más nueva del canal estable`);
   // la vigía guarda cuándo miró y lo devuelve con lo medido
   const LR = require(path.join(H.SITE, 'latest-release.js'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultima-'));
@@ -625,12 +655,12 @@ test('T20 2.79-Inicio_MaquinasSinConfirmar_Cargando_NoDiceNoMedido @story-2.79 @
   const reglas = (modelo) => access.crearReglas({ config: {}, modelo, personas: { informados: H.informados({ 'maq-x-12345678': null }), repos: null } });
   const pagina = (modelo) => views.paginaInicio({ modelo: access.filtrar(modelo, { rol: 'maintainer', email: LEAD }, reglas(modelo)), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA });
   const cargando = pagina(modeloCompleto({ corridas: noMedida('cargando'), generado: AHORA }));
-  const t = tarjetaDe(cargando, 'Máquinas sin confirmar con ejecuciones');
+  const t = tarjetaDe(cargando, 'Máquinas por confirmar con ejecuciones');
   assert.ok(t.startsWith('cargando'), `la ficha está cargando, no gris: ${t.slice(0, 40)}`);
   assert.doesNotMatch(t, /no medido|buzón/i);
   assert.match(cargando, /<meta http-equiv="refresh" content="\d+">/, 'Inicio se recarga sola mientras carga');
   const leido = pagina(modeloCompleto({ generado: Date.parse('2026-10-15T11:58:00Z') }));
-  assert.match(tarjetaDe(leido, 'Máquinas sin confirmar con ejecuciones'), /leído 11:58 UTC/);
+  assert.match(tarjetaDe(leido, 'Máquinas por confirmar con ejecuciones'), /leído <time datetime="2026-10-15T11:58:00\.000Z" data-forma="hora">11:58 UTC<\/time>/);
   assert.doesNotMatch(leido, /<meta http-equiv="refresh"/, 'leído, ya no se recarga');
 });
 
@@ -792,4 +822,58 @@ test('A115-A119 Vistas_BancoNuevosYRenglonesDeLaPersona', () => {
   assert.match(raro[1], /Riesgo · Mitigado/, 'uno que no se conoce va como lo dice la plataforma');
   assert.doesNotMatch(raro[1], /^#9 ·/, 'sin título tampoco queda un signo suelto');
   assert.doesNotMatch(require(path.join(H.SITE, 'texts.js')).t('es', 'inicio.vigilante_aceptadas_sin_story'), /story/);
+});
+
+// 🔴 Falla con (A152, recorrido F21): en Proyectos, el total de lo real decía «(parcial: falta alguna épica)» cuando la
+//    única épica estaba en la lista y lo que faltaba era una historia abierta: el motivo del «parcial» no era el real.
+test('A152 Proyectos_ElParcialDeLoRealDiceQueHayUnaEpicaAbierta', () => {
+  const est = (o) => ({ rango: null, unidad: 'hours', suma_plan: null, suma_vigente: null, dentro: null, fuera: null, por: null, sumas_por_unidad: null, motivo: null, en_horas: null, ...o });
+  const foto = (repo, epicas, estado = 'medido') => ({ proyecto: 'Proy', repo, fecha: '2026-11-27', vieja: false, stories: [], epicas, estimaciones: { estado, motivo: null, ilegibles: 0, unidad: 'hours' } });
+  const epica = { id: '1', titulo: 'La única', estimacion: est({ suma_plan: 20, suma_vigente: 22, en_horas: { min: null, max: null, plan: 20, vigente: 22 }, real: { cerrada: false, suma: 22, faltan: 1 } }) };
+  const pagina = (lista, idioma) => views.paginaProyectos({ modelo: { productos: [{ producto: 'Producto P', proyectos: ['Proy'], rutas: [] }], productosFuente: { estado: 'medido' }, proyectos: { estado: 'medido', lista } }, quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: Date.parse('2026-11-28T12:00:00Z'), idioma });
+  const total = (html) => html.slice(html.indexOf('id="estimaciones"')).split('<tr').find((f) => /Total del producto|Product total/.test(f)) || '';
+  const t1 = total(pagina([foto('RepoA', [epica])]));
+  assert.match(t1, /22 h \(parcial: alguna épica sigue abierta\)/, `con la épica abierta, el motivo es ése: ${t1}`);
+  assert.doesNotMatch(t1, /falta alguna épica/, 'no dice que falta una épica que está en la lista');
+  assert.match(total(pagina([foto('RepoA', [epica])], 'en')), /\(partial: an epic is still open\)/);
+  // un repo del producto sin medir sí deja afuera sus épicas: ahí el motivo sigue siendo que falta alguna
+  const t2 = total(pagina([foto('RepoA', [epica]), foto('RepoB', [], 'no_medido')]));
+  assert.match(t2, /22 h \(parcial: falta alguna épica\)/, `con un repo sin medir: ${t2}`);
+});
+
+// 🔴 Falla con (A156, recorrido F21): en Arnés, «(del <fecha>) · última publicada en stable (mirada sin hora)»: con una
+//    imagen armada después de su versión, parecía que la versión salió ese día (la fecha es la de la imagen), y «stable» y
+//    «mirada sin hora» no se explicaban; en inglés, «(checked no time)».
+test('A156 Arnes_LaUltimaPublicadaSeLeeSinAdivinar', () => {
+  const ultima = { estado: 'medido', version: '2026.10.15.48', creada: '2026-11-28T03:00:00Z', mirado: Date.parse('2026-11-28T09:41:00Z') };
+  // los momentos viajan como marcas: se leen como los ve un navegador sin guiones (en UTC, sin la etiqueta)
+  const W = require(path.join(__dirname, '..', 'site', 'when.js'));
+  const comoTexto = (s) => W.conMomentos(s).replace(/<\/?time[^>]*>/g, '');
+  const fila = (u, idioma) => comoTexto(views.filasArnes({}, { version: '2026.10.15.40', ultima: u, idioma }).find((x) => x.clave === 'ultima').texto);
+  const es = fila(ultima);
+  assert.match(es, /^2026\.10\.15\.48 · imagen armada el 2026-11-28 UTC · la más nueva del canal estable \(mirada a las 09:41 UTC\)$/, es);
+  assert.doesNotMatch(es, /\(del |\bstable/, 'ni «(del …)» suelto ni «stable» sin traducir');
+  // sin la hora en que se miró, no se dice «mirada sin hora»: se calla
+  const sinHora = fila({ ...ultima, mirado: undefined });
+  assert.doesNotMatch(sinHora, /sin hora|mirada/, sinHora);
+  assert.match(sinHora, /la más nueva del canal estable$/);
+  const en = fila({ ...ultima, mirado: undefined }, 'en');
+  assert.doesNotMatch(en, /no time|checked/, en);
+  assert.match(fila(ultima, 'en'), /^2026\.10\.15\.48 · image built on 2026-11-28 UTC · the newest in the stable channel \(checked at 09:41 UTC\)$/);
+});
+
+// 🔴 Falla con: la ficha de «seguimiento» llevaba el mismo rombo y el mismo amarillo que «decidir»: no se distinguía lo que
+//    hay que decidir de lo que sólo se sigue (A120, recorrido F21).
+test('A120 Inicio_SeguimientoNoSeVeComoDecidir', () => {
+  const m = modeloCompleto({ dependencias: leida({ rubros: { nuevos: 3, aceptadas_sin_resolver: 1, rechazadas_sin_deuda: 2, pedidos_cerrados_con_vivas: 0 }, vivas_por_proyecto: {} }) });
+  const html = views.paginaInicio({ modelo: access.filtrar(m, { rol: 'maintainer' }, access.crearReglas({})), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA });
+  const fichaDe = (texto) => (html.match(new RegExp(`<div class="tile [^"]*"><span class="chip [^"]*"><span class="g">[^<]*</span>${texto}</span>`, 'g')) || []);
+  const seguimiento = fichaDe('seguimiento');
+  const decidir = fichaDe('decidir');
+  assert.ok(seguimiento.length && decidir.length, 'hay de las dos');
+  for (const s of seguimiento) {
+    assert.doesNotMatch(s, /chip warn|◆/, `seguimiento sin el rombo ni el amarillo de decidir: ${s}`);
+    assert.doesNotMatch(s, /tile warn/);
+  }
+  for (const d of decidir) assert.match(d, /chip warn/, 'decidir sigue igual');
 });

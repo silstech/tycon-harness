@@ -1,5 +1,7 @@
 # Conectores de plataforma — cómo sumar una plataforma al arnés
 
+En inglés: [platform-connectors.en.md](platform-connectors.en.md).
+
 El núcleo del arnés no habla con Azure DevOps, con GitHub ni con GitLab: habla con **la plataforma del equipo**, por una
 capa (`scripts/lib/platform/platform.js`) que elige qué conector atiende cada operación y le pasa el pedido. Esta guía es
 para quien quiere sumar otra plataforma: qué tiene que atender el conector, qué tiene que contestar y cómo se prueba que

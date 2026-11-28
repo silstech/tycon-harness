@@ -105,7 +105,9 @@ h3.block{margin:34px 0 12px;display:flex;gap:10px;align-items:baseline;flex-wrap
 .lista li.nm{color:var(--nm-ink)}
 .lista .pieza{font-weight:600}.lista .estado{grid-column:1;font-size:13px;color:var(--ink-2)}
 .lista .marca{grid-row:1/span 2;grid-column:2}
-.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 8px}
+/* una tabla más ancha que la caja avisa que se desplaza: las cubiertas (local) se mueven con el contenido y las sombras
+   (scroll) quedan quietas; sin nada más a un lado, la cubierta tapa la sombra de ese lado */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:4px 8px;background:linear-gradient(to right,var(--surface) 30%,transparent) left center/40px 100% no-repeat local,linear-gradient(to left,var(--surface) 30%,transparent) right center/40px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,var(--line-strong),transparent) left center/14px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,var(--line-strong),transparent) right center/14px 100% no-repeat scroll,var(--surface)}
 /* table.tabla, con su elemento: en Corridas «tabla» es la caja que envuelve la tabla de corridas */
 table.tabla{width:100%;border-collapse:collapse;margin:0;font-size:13.5px}
 table.tabla th,table.tabla td{border-bottom:1px solid var(--line);padding:9px 9px;text-align:left;vertical-align:top}
@@ -138,6 +140,8 @@ a.kpi:hover{background:var(--wash)}
 .pestanas a.activa{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
 .pestanas .cuenta{min-width:18px;height:18px;padding:0 5px;border-radius:99px;font-size:11.5px;font-weight:600;line-height:18px;text-align:center;color:#fff;background:var(--warn)}
 .pestanas .cuenta.bad{background:var(--bad)}
+/* en el celular, las partes de Configuración bajan de renglón: deslizadas de costado, dos quedaban fuera de la vista sin aviso */
+@media (max-width:640px){.pestanas{flex-wrap:wrap;overflow-x:visible}}
 .pestana-panel[hidden]{display:none!important}
 .pestana-panel>h3.block:first-child{margin-top:0}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--good);vertical-align:1px}
@@ -216,7 +220,7 @@ select.corto.bad{border-color:var(--bad);color:var(--bad-ink)}
 .tabla2.modelos{grid-template-columns:minmax(10em,16em) max-content minmax(0,1fr)}
 .tabla2.modelos .r > .acc{flex-wrap:wrap;column-gap:12px;row-gap:2px}
 .tabla2.modelos .r > .que{flex-wrap:wrap;align-content:center;column-gap:4px;row-gap:0}
-.tabla2.modelos select.corto{width:13em;flex:none}
+.tabla2.modelos select.corto{width:auto;min-width:13em;max-width:100%;flex:none}
 .tabla2.modelos .equiv{white-space:nowrap}
 .agregar-revisor{display:grid;grid-template-columns:minmax(0,420px) max-content;align-items:center;gap:8px}
 .agregar-revisor select.corto{width:100%}
@@ -403,7 +407,7 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:var(--surface-2);bo
   .tabla2 .h{display:none}
   .tabla2.pedidos .h{display:contents}
   .tabla2.modelos{grid-template-columns:max-content minmax(0,1fr)}
-  .tabla2.modelos select.corto{width:12em}
+  .tabla2.modelos select.corto{width:auto;min-width:0;max-width:100%}
   /* la equivalencia del modelo se parte en el teléfono: entera, corría la página de costado */
   .tabla2.modelos .equiv{white-space:normal}
   .tabla2.modelos .r > .que{grid-column:1/-1;border-bottom:0;padding-bottom:0}
@@ -423,7 +427,7 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:var(--surface-2);bo
   .tabla2.firmas .r > .formas .muted{padding-top:4px}
   .tabla2.integ .r > .que{border-bottom:0;padding-bottom:0}
   .tabla2.integ .r > .sel{justify-content:flex-end}
-  .thr{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.thr > :first-child{grid-column:1/-1;font-weight:600}.thr.h{display:none}
+  .thr{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.thr > :first-child{grid-column:1/-1;font-weight:600}.thr.h > :first-child{display:none}
   .renglones li{grid-template-columns:minmax(0,1fr)}.renglones .acc{grid-row:auto;grid-column:1;justify-content:flex-start}
   .renglones .acc input{width:100%}
   .form-block{padding:16px}
@@ -431,11 +435,20 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:var(--surface-2);bo
 @media (max-width:420px){.grid{grid-template-columns:minmax(0,1fr)}}
 table.tabla#proyectos{min-width:940px}table.tabla#proyectos td:last-child{min-width:150px}
 table.tabla#proyectos thead th{white-space:normal}
+/* al desplazar la tabla de productos, la primera columna queda fija: se sigue viendo de qué producto es la fila */
+table.tabla#proyectos tbody th{position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:-9px 0 0 var(--surface),1px 0 0 var(--line)}
+table.tabla#proyectos thead th:first-child{position:sticky;left:0;z-index:2;background:var(--surface);box-shadow:-9px 0 0 var(--surface),1px 0 0 var(--line)}
+/* el resaltado de la fila también en la columna fija, sin dejar ver lo que pasa por debajo */
+table.tabla#proyectos tbody tr:hover th{background:linear-gradient(var(--wash),var(--wash)),var(--surface)}
 
 /* ── Corridas: la vista de la noche adentro del sitio ── su hoja carga después; esto va con más peso para que la letra
    sea la del sitio (la de la noche pide una tipografía que el sitio no trae) y los gráficos no pasen del ancho */
 .shell .corridas *:not(code):not(pre):not(.mono):not(svg *){font-family:var(--sans)}
 .shell .corridas svg{min-width:0 !important;max-width:100%;height:auto}
+/* salvo los dos gráficos y la línea de tiempo del detalle: achicados al ancho del celular, su letra quedaba en 3 a 4 px;
+   con estos anchos ningún rótulo baja de 9 px, y su caja se desplaza de costado */
+.shell .corridas #gsem>svg,.shell .corridas #gpasos>svg{min-width:600px !important}
+.shell .corridas .tl svg{min-width:1040px !important;max-width:none}
 .shell .corridas .card{min-width:0;max-width:100%}
 /* el enlace a una sola corrida (?solo=) esconde el resumen; las fichas del tablero, que van entre el resumen y la tabla, también */
 body.solo .corridas #fichas-corridas,body.solo .corridas #fichas-calculando{display:none}
@@ -583,7 +596,7 @@ body.solo .corridas #fichas-corridas,body.solo .corridas #fichas-calculando{disp
 .paquete-t{margin:14px 0 4px;font-weight:600}
 .tabla2.revisores select.corto{width:20em}
 .tabla2.revisores .equiv{white-space:normal;overflow-wrap:anywhere}
-@media (max-width:640px){.tabla2.revisores select.corto{width:100%}}
+@media (max-width:640px){.tabla2.revisores select.corto{width:100%}.tabla2.revisores .r > .acc{grid-column:1/-1}}
 
 /* ── el sitio demo (SITE_DEMO=1): la franja fija «Datos de ejemplo» y el selector «Ver como» ── */
 .franja-demo{position:sticky;top:0;z-index:60;box-sizing:border-box;height:36px;display:flex;align-items:center;gap:6px 14px;padding:0 24px;background:var(--warn);color:#1a1100;font-size:13px;white-space:nowrap;overflow:hidden}
@@ -613,6 +626,7 @@ body.demo .side{top:calc(var(--barra) + 36px);height:calc(100vh - var(--barra) -
 .m-sin{color:var(--ink-2)}
 .m-pie{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-top:10px}
 .m-autor{color:var(--ink-3);font-size:12.5px}
+.m-idioma{color:var(--ink-3);font-size:12.5px;margin:0 0 6px}
 .m-acciones{display:flex;gap:8px}
 .m-elegir{padding:6px 14px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font:13px var(--sans);cursor:pointer;min-height:36px}
 .m-elegir:hover{background:var(--wash)}
@@ -649,6 +663,8 @@ body.demo .side{top:calc(var(--barra) + 36px);height:calc(100vh - var(--barra) -
 .m-barra .btn.prim{background:var(--ink);color:var(--page);border-color:var(--ink)}
 .m-barra .btn[disabled]{opacity:.45;cursor:not-allowed}
 .m-cuenta{font-weight:600;font-size:13.5px;min-width:72px}
+/* en el teléfono, la barra en una sola fila: con dos renglones tapaba lo que hay que decidir (A208) */
+@media (max-width:640px){.m-barra{flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:6px 10px;margin:0 -10px}.m-barra .btn{white-space:nowrap;padding:5px 9px;min-height:32px;font-size:12.5px;flex:0 0 auto}.m-cuenta{min-width:0;white-space:nowrap;font-size:12.5px}}
 .m-estado{flex-basis:100%;color:var(--ink-2);font-size:13px}
 .m-estado:empty{display:none}
 .m-estado .m-sigue{display:block;margin-top:2px}
@@ -723,9 +739,10 @@ details.dia-a-dia{margin-top:18px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--serie-1:#338ced;--serie-2:#e76624;--serie-3:#00a888;--serie-4:#d28e05;--serie-5:#e24d8b;--serie-6:#0aac23;--serie-7:#9887ef;--serie-8:#eb6263}}
 :root[data-theme="dark"]{--serie-1:#338ced;--serie-2:#e76624;--serie-3:#00a888;--serie-4:#d28e05;--serie-5:#e24d8b;--serie-6:#0aac23;--serie-7:#9887ef;--serie-8:#eb6263}
 figure.grafico{margin:12px 0}figure.grafico figcaption{font-size:13px;color:var(--ink-2);margin-bottom:4px}figure.grafico svg{width:100%;min-width:480px;max-width:640px;height:auto}
-figure.grafico .grilla{stroke:var(--grid);stroke-width:1}figure.grafico .eje{font-size:13px;fill:var(--ink-3)}figure.grafico .sin-medir{font-size:13px;fill:var(--nm-ink)}figure.grafico .barra-tokens{fill:var(--ink-3)}
+figure.grafico .grilla{stroke:var(--grid);stroke-width:1}figure.grafico .eje{font-size:13px;fill:var(--ink-3)}figure.grafico .incompleta{font-size:13px;fill:var(--ink-3)}figure.grafico .sin-medir{font-size:13px;fill:var(--nm-ink)}figure.grafico .barra-tokens{fill:var(--ink-3)}
 ul.leyenda{list-style:none;padding:0;margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink-2)}ul.leyenda .muestra{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 p.aviso{border-left:3px solid var(--warn);padding:4px 10px;background:var(--warn-soft)}table.por-persona td,table.por-persona th{white-space:nowrap}
+table.horas th[scope="row"]{white-space:nowrap}
 table.horas-personas,table.por-persona{border-collapse:collapse;margin:6px 0 14px}
 table.horas-personas th,table.horas-personas td,table.por-persona th,table.por-persona td{padding:5px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 table.horas-personas td,table.por-persona td{font-variant-numeric:tabular-nums}

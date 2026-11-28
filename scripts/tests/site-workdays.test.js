@@ -98,7 +98,7 @@ test('T27 Sitio_SinArchivo_NoMedido @story-8.209 @ac-17', () => {
   assert.match(html, /no medido/);
   assert.match(html, /1 máquina sin medir/);
   // un día sin ninguna máquina medida: el total dice «no medido», no cero
-  assert.match(html, /<th scope="row">2026-11-07<\/th>(?:<td class="no-medido">no medido<\/td>){2}<td class="total"><div>no medido<\/div><div>2 máquinas sin medir<\/div><\/td>/);
+  assert.match(html, /<th scope="row">7 nov 2026<\/th>(?:<td class="no-medido">no medido<\/td>){2}<td class="total"><div>no medido<\/div><div>2 máquinas sin medir<\/div><\/td>/);
 });
 
 test('T28 Sitio_TokensNoMedidos_ConMotivo @story-8.209 @ac-17', () => {
@@ -232,7 +232,7 @@ test('T48 Total_SinHorasMedidas_NoEsCero @story-8.209 @ac-17', () => {
   const sinHoras = { medido: false, motivo: 'el gancho de estado no anotó ese día (apagado o sin instalar)' };
   const j = WD().leerJornadas(espejo({ 'maquina-a': { '2026-11-09': dia('2026-11-09', { horas: sinHoras }) }, 'maquina-b': { '2026-11-09': dia('2026-11-09', { horas: sinHoras }) } }));
   const t = WD().armarTabla(j, { ayer: '2026-11-09' });
-  const fila = WD().htmlTabla(t, 'es').split('<tr>').find((r) => r.includes('2026-11-09'));
+  const fila = WD().htmlTabla(t, 'es').split('<tr>').find((r) => r.includes('9 nov 2026'));
   const total = fila.slice(fila.indexOf('class="total"'));
   assert.doesNotMatch(total, /0\.0 h/);
   assert.match(total, /horas no medidas/i);
@@ -536,7 +536,7 @@ test('A102-A104 Horas_LoQueNoSeMidioDiceQuéYPorQué', () => {
   })), { ayer: '2026-11-09' });
   const tabla = WD().htmlTabla(t, 'es');
   assert.match(tabla, /tokens no medidos: una conversación no se pudo leer/, 'el motivo, a la vista');
-  const fila8 = tabla.split('<th scope="row">2026-11-08</th>')[1].split('</tr>')[0];
+  const fila8 = tabla.split('<th scope="row">8 nov 2026</th>')[1].split('</tr>')[0];
   assert.doesNotMatch(fila8, /máquina sin medir/, 'tiene horas: no es una máquina sin medir');
   assert.match(fila8, /1 máquina sin tokens medidos/);
   // una máquina con dueño y otra sin: la que no tiene persona no se presenta como persona
@@ -593,4 +593,70 @@ test('E3 E2E_HorasYTokens_CelularY1280 — A109 y A110: en un celular la página
       await ctx.close();
     }
   } finally { await navegador.close(); await h.cerrar(); }
+});
+
+// 🔴 Falla con (A123, recorrido F21): en «Ver por máquina» la fecha de cada fila se partía en dos renglones, y la página
+//    mezclaba tres formatos de fecha (año-mes-día, día/mes y mes-día).
+test('A123 Horas_LasFechasNoSeParten_YDiaPorDiaComoLosGraficos', () => {
+  const t = WD().armarTabla(WD().leerJornadas(espejo({ 'maquina-a': Object.fromEntries(DIAS5.map((d) => [d, dia(d)])) })), { ayer: '2026-11-09' });
+  const r = WD().resumen(t, {});
+  const html = WD().htmlDiaPorPersona(t, r, 'es');
+  // el formato único del sitio, el mes en letras: «09/11» en inglés se lee como el 11 de septiembre
+  assert.match(html, /<th>9 nov<\/th>/, 'el día como en los gráficos, con el mes en letras');
+  assert.doesNotMatch(html, /<th>(?:11-09|09\/11)<\/th>/);
+  assert.match(WD().htmlDiaPorPersona(t, r, 'en'), /<th>Nov 9<\/th>/, 'en inglés, el mes primero y en letras');
+  const css = fs.readFileSync(path.join(SITE, 'static', 'site.css'), 'utf8');
+  assert.match(css, /table\.horas th\[scope="?row"?\][^{]*\{[^}]*white-space:nowrap/, 'la fecha de cada fila no se parte');
+});
+
+// 🔴 mutación: comparar una semana de 7 días medidos contra una de 3 sin decirlo (la flecha dice que bajó cuando por día
+// casi se duplicó), o la barra de una semana incompleta igual a las enteras, sin marca.
+test('OH18 SemanaIncompleta_SinFlechaYMarcada — la semana anterior con menos días medidos lo dice, sin flecha; la barra también', () => {
+  const todos = diasAtras('2026-11-09', 14);
+  // esta semana 7 días de 1000 tokens; la anterior, sólo 3 días de 2000 (6000 en total: «más» que 7000 no es, pero por día
+  // es el doble)
+  const maquinas = { 'maquina-a': Object.fromEntries([...todos.slice(0, 7), ...todos.slice(7, 10)].map((d, i) => [d, dia(d, { arnes: 3600, lectura: i < 7 ? 1000 : 2000, escritura: 0 })])) };
+  const t = WD().armarTabla(WD().leerJornadas(espejo(maquinas)), { ayer: '2026-11-09', dias: 14 });
+  const r = WD().resumen(t, PEOPLE);
+  assert.strictEqual(r.semana.diasConDato, 7);
+  assert.strictEqual(r.anterior.diasConDato, 3);
+  const html = WD().htmlResumen(r, 'es');
+  const anteriores = html.match(/<div class="ficha-ant">[^<]*<\/div>/g) || [];
+  assert.strictEqual(anteriores.length, 2, 'horas y tokens');
+  for (const a of anteriores) {
+    assert.match(a, /3 de 7 días medidos/, `dice que la anterior está incompleta: ${a}`);
+    assert.doesNotMatch(a, / [↑↓=]<\/div>$/, `sin flecha contra una semana incompleta: ${a}`);
+  }
+  // con las dos semanas enteras, la flecha vuelve y no dice nada de días
+  const enteras = { 'maquina-a': Object.fromEntries(todos.map((d, i) => [d, dia(d, { arnes: i < 7 ? 7200 : 3600, sesion: 9000, lectura: 1000, escritura: 0 })])) };
+  const r2 = WD().resumen(WD().armarTabla(WD().leerJornadas(espejo(enteras)), { ayer: '2026-11-09', dias: 14 }), PEOPLE);
+  const h2 = WD().htmlResumen(r2, 'es');
+  assert.match(h2, /semana anterior: 1\.0 h ↑/);
+  assert.doesNotMatch(h2, /días medidos/);
+  // el gráfico: la semana incompleta lleva su marca y lo dice al pasar el mouse
+  assert.strictEqual(r.semanas[1].diasConDato, 3);
+  const svg = WD().htmlSemanas(r, 'es');
+  assert.match(svg, /class="incompleta"[^>]*>3\/7</, 'la barra de la semana incompleta, marcada');
+  assert.match(svg, /<title>[^<]*3 de 7 días medidos/);
+  assert.strictEqual((svg.match(/class="incompleta"/g) || []).length, 2, 'en los dos gráficos, sólo la semana incompleta');
+});
+
+// A196: en el celular, los dos gráficos de «Las últimas 6 semanas» no se achican hasta que su letra no se lee. Se
+// dibujan en W y se ven en su ancho mínimo, dentro de una caja que se desliza: ningún rótulo baja de 9 px.
+test('A196 GraficosLegiblesEnElCelular — los rótulos de los gráficos por semana no bajan de 9 px en su ancho mínimo', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'tabs', 'workdays.js'), 'utf8');
+  const css = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'static', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const W = Number(/const W = (\d+);/.exec(src)[1]);
+  const minimo = /figure\.grafico svg\{[^}]*min-width:(\d+)px/.exec(css);
+  assert.ok(minimo, 'el gráfico tiene un ancho mínimo');
+  const clases = [...new Set([...src.matchAll(/<text class="([\w-]+)"/g)].map((m) => m[1]))];
+  assert.ok(clases.length, 'los gráficos tienen rótulos');
+  for (const k of clases) {
+    const letra = new RegExp(`figure\\.grafico \\.${k}\\{[^}]*font-size:(\\d+(?:\\.\\d+)?)px`).exec(css);
+    assert.ok(letra, `el rótulo ${k} tiene su tamaño`);
+    const px = Number(letra[1]) * Number(minimo[1]) / W;
+    assert.ok(px >= 9, `el rótulo ${k} baja a ${px.toFixed(1)} px en el celular`);
+  }
+  assert.match(src, /<div class="desliza" tabindex="0"><figure class="grafico">/, 'la caja del gráfico se desliza de costado');
 });

@@ -230,6 +230,23 @@ hallazgos. El paquete hace explícito quién decide que corran, y el pipeline lo
   sincronizadores de los bloques del núcleo (`scripts/setup/sync-claude-md-blocks.sh` y `.ps1`,
   `scripts/setup/agents-md-blocks.js`), que preguntan qué paquetes están activos a `scripts/lib/pack-pieces.js blocks
   --json`. Un bloque de paquete no tiene variantes por herramienta ni por estilo.
+- **`reviewer-notes/`** (opcional, sin declararla en el manifiesto): las notas del paquete para los revisores del
+  **núcleo**, una por revisor: `reviewer-notes/<revisor>.md`, con el nombre exacto del revisor de `agents/`. El
+  revisor del núcleo queda neutro, y lo de un stack (el logger de un framework que no tiene `BeginScope`, la forma de
+  las rutas de un host, la biblioteca que arma el SQL con parámetros) llega con el paquete. Cuando el paquete está
+  activo en el repo, cada nota entra al contexto de la vuelta (el compartido y los recortados por revisor), después de
+  las reglas propias del repo, con el título «Para `<revisor>` — paquete `<paquete>`». A los que se lanzan fuera de la
+  vuelta les llega en su pedido: al validador de historias en «Validar la historia» (`notas_paquete` de
+  `pipeline.js validators`), al revisor adversarial de la historia dentro del `prompt` de su lanzamiento, y al de
+  «Probar en vivo» (`pipeline.js reviewer-notes --agent <revisor> --repo <repo>`, que frena con un nombre que no recibe
+  notas).
+  Una nota dice cómo se aplican las reglas de ese revisor en el stack: equivalentes, excepciones del framework,
+  ejemplos. No trae reglas con un ID propio ni saca las del revisor; una regla nueva va en un revisor del paquete. Es un
+  paquete roto una nota para un revisor que no es del núcleo, que es del mismo paquete o que no recibe notas (el de la
+  retrospectiva y el del alcance firmado), una vacía, una de más de 16 KB, un
+  enlace o un archivo que no es `<revisor>.md`; lo que el sistema operativo deja solo en una carpeta (`.DS_Store`,
+  `Thumbs.db`) se ignora. Viajan con la capa del equipo (`packs/<p>/reviewer-notes/*.md`, un solo nivel). Lector:
+  `skills/tycon-pipeline/scripts/lib/reviewer-notes.js`.
 - El `name` tiene que coincidir con la carpeta. Un mismo agente puede estar en dos grupos del mismo
   paquete (hermanos: `condicional` y `validacion`), nunca en dos paquetes ni repetido con el núcleo.
 - **Las claves estaban antes en castellano.** Un paquete de afuera

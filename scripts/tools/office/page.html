@@ -26,6 +26,12 @@ h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;c
 <style id="estiloOficina">
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+/* el texto de estado de una sesión: en claro mezcla el color del estado con el del texto (los colores son brillantes, para
+   el fondo oscuro); en oscuro va puro. Acá y no en los estilos de página: el sitio sólo lleva este bloque, y los selectores
+   del tema son los mismos en la página local y en el sitio */
+:root{--tinta:50%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--tinta:100%}}
+:root[data-theme="dark"]{--tinta:100%}
 /* en el sitio: los colores y la tipografía del sitio, con los nombres que usa la oficina */
 .contenido-oficina{--fg:var(--ink);--display:var(--sans);--body:var(--sans);--mono:ui-monospace,Menlo,Consolas,monospace;display:flex;flex-direction:column;gap:20px}
 .contenido-oficina h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
@@ -41,6 +47,8 @@ h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;c
 .necesita[hidden]{display:none}.necesita h2{color:#a8640b}.necesita-lista{margin:4px 0 0;padding-left:0;list-style:none}.necesita-item{margin:8px 0;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:8px}.necesita-item p{margin:2px 0}.necesita-que{font-weight:600}.necesita-lista .nada{color:var(--muted)}
 .ausente{margin:6px 0;color:#b08a2e;font-weight:600}.ausente[hidden]{display:none}.trabado[hidden]{display:none}.trabado h2{color:#b08a2e}.trabado h3{margin:8px 0 2px;font:600 .95rem var(--body)}.trabado ul{margin:0;padding-left:18px}
 .una-linea{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* el título de una tarjeta usa hasta dos renglones antes de cortarse (entero, al pasar el mouse) */
+.item.abre b.una-linea{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .empty{color:var(--muted);padding:18px;background:var(--surface);border:1px dashed var(--line);border-radius:6px;margin:0}
 /* la sala 3D es siempre de noche: un mundo propio, igual en tema claro y oscuro */
 .stage{position:relative;width:100%;aspect-ratio:16/10;max-height:82vh;border-radius:12px;overflow:hidden;background:radial-gradient(120% 90% at 50% 40%,#2a1f3a 0%,#120e1a 70%);color:#f4eefc;touch-action:none}
@@ -73,6 +81,8 @@ h2{font:700 .8rem var(--display);text-transform:uppercase;letter-spacing:.08em;c
 .tag .bar i{display:block;height:100%;background:var(--c)}
 .tag .fx{position:absolute;top:-11px;right:-9px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;display:grid;place-items:center;font:700 12px var(--body);background:var(--c);color:#14101c;box-shadow:0 0 12px var(--c)}
 .tag .fx:empty{display:none}
+/* con insignia, la etiqueta deja lugar a la derecha: la insignia no tapa el final del nombre */
+.tag:has(.fx:not(:empty)){padding-right:22px}
 .tag.alert{border-color:var(--c);animation:pulso 1.2s ease-in-out infinite}
 @keyframes pulso{50%{box-shadow:0 0 0 4px rgba(255,165,61,.35),0 6px 18px rgba(0,0,0,.45)}}
 @media (prefers-reduced-motion:reduce){.tag.alert{animation:none}}
@@ -148,6 +158,7 @@ html.con-ventana{overflow:hidden}.ventana .panel3,.ventana .chat{overscroll-beha
 .panel3 details.pasos summary{margin:14px 0 6px;font:700 .78rem var(--display);text-transform:uppercase;letter-spacing:.07em;color:var(--c);cursor:pointer}
 ol.steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:12.5px}
 ol.steps li{display:flex;gap:8px;color:#9d93b0} .panel3 ol.steps li.done{color:#d9d0ea} .card ol.steps li.done{color:var(--fg)} ol.steps li.now{color:var(--c);font-weight:600}
+.card ol.steps li{color:color-mix(in srgb,#9d93b0 var(--tinta),var(--fg))} .card ol.steps li.done{color:var(--fg)} .card ol.steps li.now{color:var(--c-tinta)}
 ol.steps li span{width:14px;flex:none;text-align:center}
 .panel3 .verTodos{font:500 .85rem var(--body);padding:5px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:transparent;color:inherit;cursor:pointer}
 .panel3 h4.toca{color:#ffb04d}.panel3 ul.toca li::marker{color:#ffb04d}
@@ -170,10 +181,10 @@ ol.steps li span{width:14px;flex:none;text-align:center}
 .ventana .panel3.detalle a{color:#8fd0ff}
 .ventana .panel3.detalle .chips{margin:8px 0}
 .crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0;--c-tinta:color-mix(in srgb,var(--c) var(--tinta),var(--fg))}
 .card h3{margin:0;font:700 1rem/1.3 var(--display);display:flex;align-items:center;gap:8px}
 .card .dot{width:10px;height:10px;border-radius:50%;flex:none}
-.card .st{align-self:flex-start;font:500 .74rem var(--body);padding:1px 9px;border-radius:999px;border:1px solid}
+.card .st{align-self:flex-start;font:500 .74rem var(--body);padding:1px 9px;border-radius:999px;border:1px solid var(--c);color:var(--c-tinta)}
 .card p{margin:0;font-size:.9rem;line-height:1.45;overflow-wrap:anywhere}
 .card dl{margin:0;font-size:.82rem;line-height:1.35}
 .card dt{color:var(--muted);font-size:.72rem;margin-top:5px} .card dt:first-child{margin-top:0} .card dd{margin:0;min-width:0;overflow-wrap:anywhere}

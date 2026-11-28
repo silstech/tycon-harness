@@ -349,31 +349,31 @@ Archivo del advisor: `~/.claude/agent-skills/agents/tycon-plugin-security-basics
 
 | ID | Nombre | Fix típico |
 |---|---|---|
-| **SEC-C1** | Path/URL injection via raw interpolation | `Uri.EscapeDataString(v)` + route constraint `{id:guid}` |
-| **SEC-C2** | Secretos hardcoded en código | Mover a `IOptions<T>` o secret manager |
-| **SEC-C3** | Inputs sin validación en POST/PUT/PATCH | FluentValidation + `[Required]` en DTOs |
-| **SEC-C4** | Datos sensibles en respuestas sin sanitizar | Mapear a DTO con allow-list de campos |
-| **SEC-C5** | Log statements con data de usuario | Loggear IDs opacos, no PII |
-| **SEC-C6** | Uso criptográfico incorrecto | `RandomNumberGenerator.GetBytes` / `Argon2id` / `GCM` |
-| **SEC-C7** | Path traversal en file operations | `Path.GetFullPath` + whitelist de directory root |
-| **SEC-C8** | Connection string hardcoded | `IConnectionFactory` + config |
-| **SEC-C9** | Config de seguridad crítica con fallback hardcodeado silencioso | `throw`/fail-fast en startup si falta la key/credencial — nunca un default operativo. Espejo .NET de AUTH-C6 |
-| **SEC-C10** | Ruta que escribe o lee datos sensibles abierta a «todos los usuarios registrados» (su lista de roles incluye el rol general: `RequireAuthorization`/`[Authorize(Roles)]` equivale a «cualquiera autenticado») | Sacar el rol general de la lista; un caso que pruebe 403 para un usuario con sólo ese rol |
-| **SEC-C11** | Entrada sin tope que se guarda, o que crece sin podar (`ReadToEndAsync` sin límite o con el tope apagado → `NVARCHAR(MAX)`; una fila por guardado). Por tamaño o crecimiento es SEC-C11, no SEC-C3 | Tope de tamaño en la entrada (`[RequestSizeLimit]`, `[MaxLength]`, 413) y podar o actualizar en vez de agregar |
-| **SEC-C12** | Credencial cruda del usuario en una respuesta (un DTO con `RawToken`/`Password`/`Secret`/`ApiKey` en un GET) | Devolver sólo si existe, los últimos 4 caracteres o el vencimiento; la credencial se usa del lado del servidor |
+| **SEC-C1** | URL o ruta armada con un valor de afuera sin escaparlo | Codificar el valor (`quote`, `encodeURIComponent`, `Uri.EscapeDataString`, `UriUtils.encodePathSegment`, `url.PathEscape`) y restringir el formato en la ruta |
+| **SEC-C2** | Secretos escritos en el código | Leerlos de la configuración o de un gestor de secretos; sacar el valor del historial |
+| **SEC-C3** | Entrada sin validar en una ruta que escribe | Validar contra un esquema o un tipo con reglas de obligatoriedad y formato (Pydantic, Zod, FluentValidation, Bean Validation) y rechazar con 400 |
+| **SEC-C4** | Datos sensibles en la respuesta, sin un objeto de salida | Mapear a un objeto de salida con la lista explícita de campos públicos |
+| **SEC-C5** | Datos del usuario en los registros | Registrar identificadores opacos, con parámetros estructurados |
+| **SEC-C6** | Criptografía mal usada | El generador seguro del lenguaje (`secrets`, `crypto.randomBytes`, `RandomNumberGenerator`, `SecureRandom`, `crypto/rand`), Argon2id/bcrypt, GCM |
+| **SEC-C7** | Acceso a archivos con una ruta de afuera | Resolver la ruta absoluta y rechazar si queda fuera de la raíz permitida |
+| **SEC-C8** | Cadena de conexión escrita en el código | Leerla de la configuración y pasarla por inyección o una fábrica de conexiones |
+| **SEC-C9** | Configuración de seguridad con un valor por defecto escrito en el código | Fallar al arrancar si falta la clave o credencial; nunca un valor por defecto que funcione. Espejo general de AUTH-C6 |
+| **SEC-C10** | Ruta que escribe o lee datos sensibles abierta a «todos los usuarios registrados» (su lista de roles incluye el rol general, y entonces equivale a «cualquiera autenticado») | Sacar el rol general de la lista; un caso que pruebe 403 para un usuario con sólo ese rol |
+| **SEC-C11** | Entrada sin tope que se guarda o que crece sin podar (cuerpo leído sin límite, campo de texto sin largo máximo o tope del servidor apagado, guardado en un campo sin tope; una fila por guardado). Por tamaño o crecimiento es SEC-C11, no SEC-C3 | Tope de tamaño en la entrada (413), largo máximo por campo, y podar o actualizar en vez de agregar |
+| **SEC-C12** | Credencial del usuario devuelta tal cual (un objeto de salida con `token`/`rawToken`/`password`/`secret`/`apiKey`, típicamente en un GET) | Devolver sólo si existe, los últimos 4 caracteres o el vencimiento; la credencial se usa del lado del servidor |
 
 ### WARNING
 
 | ID | Nombre | Fix típico |
 |---|---|---|
-| **SEC-W1** | CORS muy permisivo (`AllowAnyOrigin` + `AllowCredentials`) | Enumerar origins explícitos |
-| **SEC-W2** | SQL dinámico sin SafeQueryBuilder | `SafeQueryBuilder.Query/Insert/Update/Delete` |
-| **SEC-W3** | Deserialización débil (`Deserialize<dynamic>`) | Tipos estrictos |
-| **SEC-W4** | Webhook handler sin validación de firma del provider | Validar firma del provider con su SDK (Twilio, Meta, Stripe, etc.) o HMAC contra secret de config antes de procesar |
-| **SEC-W5** | Webhook handler sin idempotency-key / dedupe | Verificar `<provider>EventId` (`MessageSid`, `EventId`) antes de procesar para evitar double-process en retransmits |
-| **SEC-W6** | Log statements con tokens del webhook | Loggear solo metadata segura (provider, projectId, eventType, ts). NO body completo, NO signature, NO headers de auth |
-| **SEC-W8** | Texto que viene de un ARCHIVO EXTERNO al código (volcados, logs, registros, JSON de otra pieza) publicado en una página o reporte con el saneado aplicado sólo a «el mensaje» | Sanear **campo por campo** todo lo que se publique de esa fuente —motivos, títulos, notas, no sólo el campo obvio— con el mismo saneador (`sanear` de `tokens-digest.js` o el del repo), y un caso que cargue cada campo con un marcador. Por qué: un campo que parece prosa fija (el «motivo» de una conversación borrada) puede llevar identificadores de sesión a la página |
-| **SEC-W7** | Servicio HTTP/socket local-only bindeado a todas las interfaces | `listen(port, '127.0.0.1')` / `UseUrls("http://127.0.0.1:port")` por default (escala a CRITICAL si expone endpoints sin auth) |
+| **SEC-W1** | CORS demasiado abierto (cualquier origen junto con credenciales) | Enumerar los orígenes permitidos |
+| **SEC-W2** | SQL armado concatenando texto, sin parámetros | Consulta parametrizada (placeholders, `PreparedStatement`, el constructor de consultas del ORM) o la biblioteca de consultas seguras que el repo declare |
+| **SEC-W3** | Deserialización sin tipo fuera de una ruta que escribe (en una que escribe es SEC-C3; CRITICAL si es un deserializador de objetos sobre datos de afuera: `pickle`, `yaml.load`, `BinaryFormatter`) | Tipo estricto o esquema |
+| **SEC-W4** | Webhook sin verificar la firma del proveedor | Verificar la firma con el SDK del proveedor o un HMAC contra el secreto de la configuración, con comparación de tiempo constante, antes de procesar |
+| **SEC-W5** | Webhook sin control de duplicados | Guardar el id del evento del proveedor (`event.id`, `MessageSid`, `X-GitHub-Delivery`) y saltear los ya vistos antes de procesar |
+| **SEC-W6** | Credenciales del webhook en los registros | Registrar sólo metadatos seguros (proveedor, tipo de evento, id, hora); nunca el cuerpo completo, la firma ni encabezados de autorización |
+| **SEC-W8** | Texto de un ARCHIVO EXTERNO al código publicado con el saneado aplicado sólo a «el mensaje» | Sanear **campo por campo** todo lo que se publique de esa fuente (motivos, títulos, notas, no sólo el campo obvio) con el mismo saneador del repo, y un caso que cargue cada campo con un marcador |
+| **SEC-W7** | Servicio local escuchando en todas las interfaces | Escuchar en `127.0.0.1` por defecto (escala a CRITICAL si expone rutas sin autenticación) |
 
 ---
 

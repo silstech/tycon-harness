@@ -220,7 +220,7 @@ test('T26 2.28-Rol_PersonaSaleDePeople', async () => {
     Object.assign(fuentes.st, sources.estadoDelSitio({ hayUltimoBueno: true, fallaDesde: falla, fallaRutas: 'problemas en people.machines', ahora: Date.now() }));
     const frenada = await h.pedir('/', { cookie: sA });
     assert.strictEqual(frenada.status, 503);
-    assert.ok(frenada.texto.includes(`el sitio está frenado desde ${views.hora(falla + 24 * 3600000)}: la configuración de la organización no valida; se destraba cuando un refresco la lee bien`), 'desde cuándo está frenado y el motivo');
+    assert.ok(frenada.texto.includes(`el sitio está frenado desde ${require('../site/when.js').momento(falla + 24 * 3600000)}: la configuración de la organización no valida; se destraba cuando un refresco la lee bien`), 'desde cuándo está frenado y el motivo');
     assert.doesNotMatch(frenada.texto, /ejecuciones en 7 días|people\.machines/, 'sin datos ni rutas del archivo');
   });
 });
@@ -275,7 +275,7 @@ test('T27 2.28-Modelo_ProyectosEInicioDesdeDondeTrabaja', () => {
   // quien mantiene: la cuenta de máquinas sin confirmar con corridas (la de OTRO y la que no informa), sin correos
   const mL = ve(LEAD);
   assert.strictEqual(mL.maquinasSinConfirmar, 2);
-  assert.match(views.paginaInicio({ modelo: mL, quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: Date.now() }), /Máquinas sin confirmar con ejecuciones[\s\S]*?t-val">2</);
+  assert.match(views.paginaInicio({ modelo: mL, quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: Date.now() }), /Máquinas por confirmar con ejecuciones[\s\S]*?t-val">2</);
   assert.ok(!JSON.stringify(mL).includes(OTRO) && !JSON.stringify(mA).includes(OTRO), 'ningún correo informado en el modelo');
 });
 
@@ -394,7 +394,7 @@ test('T44 2.28-Config_BandaSoloMantenedores_YFrenoA24h', async () => {
     // a las 2 horas: vale el último bueno; la banda, sólo para quien mantiene, con la hora y las rutas
     fijar(Date.now());
     const iniL = await h.pedir('/', { cookie: sL });
-    assert.ok(iniL.texto.includes(`la configuración de la organización no se pudo releer desde ${views.hora(falla)}: ${rutasDelProblema}`), 'la banda de quien mantiene');
+    assert.ok(iniL.texto.includes(`la configuración de la organización no se pudo releer desde ${require('../site/when.js').momento(falla)}: ${rutasDelProblema}`), 'la banda de quien mantiene');
     const iniA = await h.pedir('/', { cookie: sA });
     assert.doesNotMatch(iniA.texto, /no se pudo releer|people\.machines/, 'la persona no ve la banda');
     assert.match(iniA.texto, /1 ejecuciones en 7 días/, 'y sigue viendo lo suyo');
@@ -404,7 +404,7 @@ test('T44 2.28-Config_BandaSoloMantenedores_YFrenoA24h', async () => {
     for (const s of [sL, sA]) {
       const r = await h.pedir('/', { cookie: s });
       assert.strictEqual(r.status, 503);
-      assert.ok(r.texto.includes(`el sitio está frenado desde ${views.hora(falla + 24 * 3600000)}`));
+      assert.ok(r.texto.includes(`el sitio está frenado desde ${require('../site/when.js').momento(falla + 24 * 3600000)}`));
       assert.doesNotMatch(r.texto, /ejecuciones en 7 días|people\.machines|Máquinas sin confirmar/);
     }
     const hz = await h.pedir('/healthz');

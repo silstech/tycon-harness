@@ -21,6 +21,15 @@ my-pack/
 A pack can also bring `skills/`, `guides/`, `templates/` and `claude-md-blocks/`. The full manifest format is in
 [agent-architecture.md](agent-architecture.md), section «Paquetes de revisores».
 
+**Notes for the core reviewers.** The core reviewers work for any stack. If in yours one of their rules is met in a
+different way (your framework has no `BeginScope` and a prefix in the message does the job; your host puts a prefix on
+the routes), the pack brings `reviewer-notes/<reviewer>.md`, one note per core reviewer, with its exact name. With the
+pack active, the note reaches that reviewer in the context of every round. It explains how its rules look in your
+stack; it does not add rules with an ID of its own nor remove theirs (a new rule goes in a reviewer of yours). Up to
+16 KB, with no frontmatter or title: the pipeline adds «Para `<revisor>` — paquete `<paquete>`» (For `<reviewer>` —
+pack `<pack>`). Two core reviewers get no notes, because they do not run with the request the pipeline builds: the
+retrospective one (`tycon-retrospective-capturer`) and the signed-scope one (`tycon-signed-scope-audit`).
+
 **A reviewer** is a `.md` file with frontmatter (`name`, `tools`, `model`, `description`) and a rule catalog. Each rule
 has an ID with the reviewer's prefix (`FASTAPI-C1` is critical, `FASTAPI-W1` is a warning), and each finding comes out
 as `- [FASTAPI-C1] file:line …`. Copy one of the two in the example and change its name, prefix and rules. Two packs

@@ -88,8 +88,10 @@ function blobsDelBuzon(ahora = Date.now(), { completo = false, version = VERSION
   const corridas = [
     ['mac-ana', '1.4', 'Producto-X/FrontEnd', haceHoras(50), { ...dos }],
     ['mac-ana', '1.5', 'Producto-X/FrontEnd', haceHoras(28), { rojo: true, ...dos }],
-    ['mac-ana', '2.1', 'Producto-Y/Backend', haceHoras(6), { pasos: [0, 1, 2, 3, 4] }],
-    ['mac-bruno', '2.2', 'Producto-Y/Backend', haceHoras(8), { ...dos }],
+    // en el sitio demo, cada máquina anota los pasos de su versión: la de Bruno tiene el arnés viejo y los junta en
+    // «Implementar + pruebas» (aunque corra después de que otras los partieran); la de mac-ana se frenó en Implementar
+    ['mac-ana', '2.1', 'Producto-Y/Backend', haceHoras(6), { pasos: [0, 1, 2, 3, 4], ...dos }],
+    ['mac-bruno', '2.2', 'Producto-Y/Backend', haceHoras(8), {}],
     ['mac-lead', '3.1', 'Producto-X/Backend', haceHoras(75), {}],
   ];
   corridas.forEach(([maq, story, repo, inicio, extra], i) => { b[`${maq}/${sid(i + 1)}.json`] = volcadoDeEjecucion(sid(i + 1), inicio, { story, repo, completo, ...extra }); });
@@ -220,19 +222,23 @@ function volcadoCompleto(sid, inicio, { story, repo, pasos, rojo, esquema }) {
   ids.forEach((p, i) => { tiempos[p] = { startedAt: m(2 + i * 12), completedAt: m(10 + i * 12), ...(p === 'findings' ? { waitStartedAt: m(5 + i * 12) } : {}) }; });
   const fase = (limpio, hallazgos) => ({ lanzamientos: limpio + hallazgos, limpio, hallazgos, inconsistente: 0, sin_veredicto: 0, no_medido: 0 });
   const porFase = Object.fromEntries(FASES_DEL_VALIDADOR.map((f) => [f, f === 'antes-de-implementar' ? fase(1, 0) : f === 'vuelta-1' ? fase(0, 1) : fase(0, 0)]));
-  const spawns = Object.values(REVISORES_POR_TIPO).reduce((a, b) => a + b, 0);
+  // una ejecución que no llegó a Revisores no tiene vueltas ni revisores lanzados (el validador sí corre antes)
+  const llegoARevisores = ids.includes('reviewers') || ids.includes(7);
+  const spawns = llegoARevisores ? Object.values(REVISORES_POR_TIPO).reduce((a, b) => a + b, 0) : 0;
+  const porTipo = llegoARevisores ? { ...REVISORES_POR_TIPO } : {};
   return JSON.stringify({
     archivedAt: m(130),
-    marker: { storyId: story, storyPath: `/home/dev/acme/specs/story-${story}-una-mejora.md`, repoPath: `/home/dev/acme/${repo}`, sessionId: sid, startedAt: m(0), lastTouch: m(120),
+    // la carpeta de trabajo es la de un dev, no una «acme»: el arnés lee esas como laboratorio (así se llaman sus pruebas)
+    marker: { storyId: story, storyPath: `/home/dev/proyectos/specs/story-${story}-una-mejora.md`, repoPath: `/home/dev/proyectos/${repo}`, sessionId: sid, startedAt: m(0), lastTouch: m(120),
       ...(esquema === 2 ? { stepScheme: 2 } : {}), stepsCompleted: ids, stepsPending: [], stepTimings: tiempos,
-      iterations: { 1: { ts: m(60) }, 2: { ts: m(85) } } },
+      iterations: llegoARevisores ? { 1: { ts: m(60) }, 2: { ts: m(85) } } : {} },
     gates: [
       { ts: m(20), sessionId: sid, check: 'build', status: 'green', exit: 0, durationMs: 11000 },
       { ts: m(40), sessionId: sid, check: 'tests', status: rojo ? 'red:exit=1' : 'green', exit: rojo ? 1 : 0, durationMs: 61000 },
     ],
-    costo: { spawns, adhoc: 0, iteraciones: 2, por_tipo: { ...REVISORES_POR_TIPO } },
+    costo: { spawns, adhoc: 0, iteraciones: llegoARevisores ? 2 : 0, por_tipo: porTipo },
     revisores: { estado: 'medido', fuente: 'hilo_guardado', lanzamientos: spawns, con_resultado: spawns, sin_resultado: 0, no_ubicados: 0, fuera_del_registro: 0, con_tokens: spawns,
-      por_vuelta: { 1: spawns - 2, 2: 2 }, por_tipo: { ...REVISORES_POR_TIPO },
+      por_vuelta: llegoARevisores ? { 1: spawns - 2, 2: 2 } : {}, por_tipo: porTipo,
       duracion_ms: { mediana: 95000, total: 95000 * spawns, n: spawns }, devuelto_bytes: { mediana: 2400, total: 2400 * spawns, n: spawns },
       tokens_medidos: { total: 40000 * spawns, n: spawns },
       estimado: { estado: 'vacio', motivo: 'todos los lanzamientos tienen tokens medidos', lanzamientos_cubiertos: 0 },
@@ -346,19 +352,19 @@ function fotosCompletas({ ahora, hoy, ayer, archivos }) {
   const fichaDep = (id, pr, veredicto, paquete, severidad, noches, extra = '') => `id: ${id}\ndetectado: ${d(noches)}\nveredicto: ${veredicto}\npaquete: ${paquete}\nseveridad: ${severidad}\nnoches: ${noches}\n${conPr(pr)}${extra}`;
   const fichaVig = (id, pr, veredicto, regla, extra = '', producto = 'producto-x') => `id: ${id}\nfuente: vigilante\ncausa: ${producto}:${regla}\nfecha: ${ayer}\nproducto: ${producto}\nregla: ${regla}\nseveridad: alta\nveredicto: ${veredicto}\nvista_por_ultima_vez: ${hoy}\nnoches_seguidas: 2\n${conPr(pr)}${extra}`;
   Object.assign(f, {
-    'inbox/dependencies/pending/f1.yaml': fichaDep('f1', null, 'pendiente', 'pkg-uno', 'high', 3, `aviso_resumen: "Prototype pollution in pkg-uno via crafted keys (CVE-2026-1234)"\naviso_parche: "2.4.1"\npropuesta_accion: aceptar\npropuesta_razon: La versión 2.4.1 corrige el problema y el pedido sólo sube el paquete\nrepos:\n  - Producto X/FrontEnd\npedidos:\n  - Producto X: 5002\nasignados:\n  - "5002: Ana Pérez"\n`),
+    'inbox/dependencies/pending/f1.yaml': fichaDep('f1', null, 'pendiente', 'pkg-uno', 'high', 3, `aviso_resumen: "Prototype pollution in pkg-uno via crafted keys (CVE-2026-1234)"\naviso_parche: "2.4.1"\npropuesta_accion: aceptar\npropuesta_razon: La versión 2.4.1 corrige el problema y el pedido sólo sube el paquete\npropuesta_modelo: modelo-de-ejemplo\nrepos:\n  - Producto X/FrontEnd\npedidos:\n  - Producto X: 5002\nasignados:\n  - "5002: Ana Pérez"\n`),
     'inbox/dependencies/promoted/f2.yaml': fichaDep('f2', 202, 'util', 'pkg-dos', 'moderate', 5, 'repos:\n  - Producto X/FrontEnd\n'),
     'inbox/dependencies/archived/f3.yaml': fichaDep('f3', 203, 'descartado', 'pkg-tres', 'low', 8),
     // la tarea de pkg-cuatro se cerró y el paquete sigue: la ficha la tiene (la que el Inicio dice cerrada)
     'inbox/dependencies/promoted/f4.yaml': fichaDep('f4', 204, 'util', 'pkg-cuatro', 'high', 6, 'repos:\n  - Producto X/FrontEnd\npedidos:\n  - Producto X: 5003\n'),
-    'inbox/watcher/pending/v1.yaml': fichaVig('v1', null, 'pendiente', 'deriva', 'propuesta_accion: arreglar\npropuesta_razon: Se repite en el mismo endpoint desde el último despliegue\n'),
+    'inbox/watcher/pending/v1.yaml': fichaVig('v1', null, 'pendiente', 'deriva', 'propuesta_accion: arreglar\npropuesta_razon: Se repite en el mismo endpoint desde el último despliegue\npropuesta_modelo: modelo-de-ejemplo\n'),
     'inbox/watcher/promoted/v2.yaml': fichaVig('v2', 206, 'util', 'goteo', '', 'producto-y'),
   });
   const CYCLE = require('../../nightly/findings/cycle.js');
   const ej1 = { ...CYCLE.nuevaFicha({ fuente: 'ejecuciones', causa: 'RR-ESCAPE:TYCON_NO_DEEP_REVIEW', nombre: 'Se saltó el pase adversarial', hoy: ayer }),
     ultima_vez: hoy, apariciones: 3, propuesta: { accion: 'arreglar', razon: 'Pasa en la mitad de las ejecuciones de la semana' },
     analisis: { recomendacion: 'arreglar', por_que_pasa: 'Se apagó con la variable de escape en 3 de las 6 ejecuciones de la semana, siempre en la misma máquina', por_que_recomienda: 'sin el pase adversarial los errores llegan a la revisión humana', arreglo: 'que el escape pida el ok de una persona y quede anotado', autor: 'modelo', modelo: 'sonnet', el: hoy } };
-  const ej2 = { ...CYCLE.nuevaFicha({ fuente: 'ejecuciones', causa: 'RR-ROJO:pruebas', nombre: 'Las pruebas quedaron en rojo al cerrar', hoy: ayer }), veredicto: 'arreglo', pedido: 5004 };
+  const ej2 = { ...CYCLE.nuevaFicha({ fuente: 'ejecuciones', causa: 'RR-CIERRE:incoherente', nombre: 'cerrada con pendientes', hoy: ayer }), veredicto: 'arreglo', pedido: 5004 };
   f[`inbox/runs-review/pending/${ej1.id}.yaml`] = CYCLE.serializar(ej1);
   f[`inbox/runs-review/promoted/${ej2.id}.yaml`] = CYCLE.serializar(ej2);
   // lo que deja la noche para el sitio
@@ -533,19 +539,19 @@ function oficinasDeEjemplo(ahora = Date.now()) {
   });
   return [
     { id: 'mac-lead', person: LEAD, conectada: true, sinConexionDesde: null, marcas: [], foto: foto([
-      sesion('Coordinadora', 'coordina', { haciendo: 'Reparte los turnos de las pruebas pesadas' }),
+      sesion('Coordinadora', 'coordina', { haciendo: 'Coordina las sesiones de esta máquina' }),
       sesion('Atlas', 'prueba', { titulo: 'Aviso cuando un pedido sale de la cola', fin: fin(40), avance: 55, pasos: pasos(5) }),
       sesion('Boro', 'firma', { titulo: 'Los avisos de espera llegan a quien corresponde', espera: 'el plan espera tu firma', fin: fin(65), avance: 27, pasos: pasos(3) }),
       sesion('Cleo', 'trabajando', { titulo: 'La oficina se actualiza en tiempo real', fin: fin(90), avance: 73, pasos: pasos(8) }),
       sesion('Dina', 'libre', { haciendo: 'Sin trabajo' }),
+      sesion('Hugo', 'parada', { titulo: 'Revisa un error al iniciar sesión desde el celular', parada: `parada desde las ${hhmm(ahora - 35 * 60000)}` }),
     ]) },
-    { id: 'mac-ana', person: ANA, conectada: true, sinConexionDesde: null, marcas: [], foto: foto([
+    // como en el sitio real, sólo las máquinas confirmadas tienen oficina (mac-bruno sigue «por confirmar» en
+    // Configuración); la de Ana muestra cómo se ve una oficina sin conexión: su última foto, con la hora en que se cortó
+    { id: 'mac-ana', person: ANA, conectada: false, sinConexionDesde: ahora - 42 * 60000, marcas: [], foto: foto([
       sesion('Eros', 'trabajando', { titulo: 'Comprobante de transferencias entre cuentas', fin: fin(25), avance: 45, pasos: pasos(5) }),
       sesion('Fara', 'espera', { titulo: 'Exportar los reportes mensuales a planilla', haciendo: 'Espera su turno para entrar', fin: fin(50), avance: 91, pasos: pasos(10) }),
       sesion('Gael', 'libre', { haciendo: 'Sin trabajo' }),
-    ]) },
-    { id: 'mac-bruno', person: BRUNO, conectada: false, sinConexionDesde: ahora - 42 * 60000, marcas: [], foto: foto([
-      sesion('Hugo', 'parada', { titulo: 'Revisa un error al iniciar sesión desde el celular', parada: 'sin novedades' }),
     ]) },
   ];
 }
@@ -574,4 +580,4 @@ function jornadasDeEjemplo(ahora = Date.now()) {
   return out;
 }
 
-module.exports = { oficinasDeEjemplo, jornadasDeEjemplo, PAQUETE_DE_REVISORES, CAMPOS_DE_RIESGO, LEAD, ANA, BRUNO, INVITADA, PERFIL, RECETA_NETFX, REPOS, ADVISORS_DE_EJEMPLO, VERSION_DE_EJEMPLO, diasDe, volcadoMinimo, volcadoDeEjecucion, blobsDelBuzon, archivosDeOperaciones, operaciones, archivosDelPerfil };
+module.exports = { VERSION_VIEJA, oficinasDeEjemplo, jornadasDeEjemplo, PAQUETE_DE_REVISORES, CAMPOS_DE_RIESGO, LEAD, ANA, BRUNO, INVITADA, PERFIL, RECETA_NETFX, REPOS, ADVISORS_DE_EJEMPLO, VERSION_DE_EJEMPLO, diasDe, volcadoMinimo, volcadoDeEjecucion, blobsDelBuzon, archivosDeOperaciones, operaciones, archivosDelPerfil };

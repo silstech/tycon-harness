@@ -223,3 +223,92 @@ test('T16 PhotoPhrases_AfterThePass — la nota en todas sus vistas, los agentes
   };
   for (const [es, en] of Object.entries(casos)) assert.strictEqual(traducir(es), en, es);
 });
+
+// 🔴 Falla con: los pasos de una ejecución y la etiqueta «coordina» en castellano en la oficina en inglés (recorrido del
+// sitio del 27/11). Los nombres de los pasos llegan en la foto como los dice el pipeline; la traducción es la misma que
+// usa el sitio (`paso.<id>` de scripts/site/texts.js), así un paso nuevo sin traducir frena acá.
+test('T-pasos Steps_AndCoordinatesLabel_InEnglish — cada paso del pipeline y «coordina» salen en inglés', () => {
+  const { traducir } = block({ source: 'site', lang: 'en' });
+  const STEPS = require(path.join(__dirname, '..', '..', 'skills', 'tycon-pipeline', 'scripts', 'lib', 'steps.js'));
+  const { TEXTOS } = require(path.join(__dirname, '..', 'site', 'texts.js'));
+  const ids = STEPS.STEPS.map((s) => s.id);
+  assert.ok(ids.length >= 11, `los pasos: ${ids.join(' ')}`);
+  for (const id of ids) {
+    const t = TEXTOS[`paso.${id}`];
+    assert.ok(t, `el sitio no traduce el paso ${id}`);
+    assert.strictEqual(traducir(STEPS.stepName(id)), t.en, `el paso ${id} («${STEPS.stepName(id)}»)`);
+  }
+  assert.strictEqual(traducir('coordina '), 'coordinates ', 'la etiqueta del resumen de cada oficina');
+});
+
+// 🔴 Falla con: «Corriendo pruebas» con una tilde sobre la cabeza. La tilde se lee como «terminó» y la sesión sigue
+// trabajando (recorrido del sitio del 27/11).
+test('T-icono Running_Tests_Icon_IsNotACheckMark — el ícono de quien corre pruebas no dice «terminado»', () => {
+  const m = /const FX=(\{[^}]*\});/.exec(CODE);
+  assert.ok(m, 'page.js trae la tabla FX de los íconos sobre la cabeza');
+  const FX = JSON.parse(m[1].replace(/([{,])(\w+):/g, '$1"$2":'));
+  assert.ok(FX.prueba, 'quien corre pruebas tiene su ícono');
+  assert.doesNotMatch(FX.prueba, /[✓✔☑✅]/u, `el ícono de «Corriendo pruebas» es «${FX.prueba}»`);
+});
+
+// 🔴 Falla con: el pie de «Las sesiones» siempre a la vista. Explica «Prometido» y el color de la diferencia, y en el
+// recorrido del sitio del 27/11 ninguna sesión mostraba ninguno de los dos.
+test('T-pie Footer_OnlyWhenSomeSessionShowsPromisedOrDifference — el pie sale sólo si hay algo que explicar', () => {
+  const m = /const conPrometido=([^\n]*);\n/.exec(CODE);
+  assert.ok(m, 'page.js decide con conPrometido si el pie hace falta');
+  const finTxt = (a) => a.fin || null;
+  const conPrometido = new Function('finTxt', `return ${m[1]};`)(finTxt);
+  assert.strictEqual(conPrometido([]), false);
+  assert.strictEqual(conPrometido([{ fin: { hora: '14:20' } }, { nombre: 'x' }]), false, 'sin prometido ni diferencia, no hace falta');
+  assert.strictEqual(conPrometido([{ estimadaIso: '2026-11-28T14:00:00Z' }]), true, 'una con prometido');
+  assert.strictEqual(conPrometido([{ fin: { hora: '14:20', dif: '+20 min', cls: 'late' } }]), true, 'una con diferencia');
+  assert.match(CODE, /function renderCrew\(\)\{[^\n]*foot"\)\.hidden=!conPrometido\(agents\)/, 'la oficina local lo usa');
+  assert.match(CODE, /\$\("foot"\)\.hidden=!oficinas\.size\|\|!\[\.\.\.oficinas\.values\(\)\]\.some\(o=>conPrometido\(/, 'el sitio también');
+});
+
+// 🔴 Falla con: en la oficina en inglés, las frases fijas de cada sesión en castellano: «el plan espera tu firma»,
+// «Espera su turno para entrar», «sin novedades», «parada desde las 10:20» (recorrido del sitio del 27/11). Las que
+// arma la foto con texto fijo, y las del demo, salen traducidas; los títulos de las historias quedan como vinieron.
+test('T-frases Session_FixedPhrases_InEnglish — lo que hace, espera o la frena cada sesión, en inglés', () => {
+  const { traducir } = block({ source: 'site', lang: 'en' });
+  const DEMO = require(path.join(__dirname, '..', 'site', 'demo', 'data.js')).oficinasDeEjemplo(Date.UTC(2026, 10, 28, 13, 0));
+  const frases = new Set(['Sin trabajo', 'Coordina las sesiones de esta máquina', 'la firma la coordinadora', 'parada desde las 10:20',
+    'Inactiva: sin novedades desde las 10:20.', 'Una prueba: su cuadro es parte de la prueba.']);
+  for (const o of DEMO) for (const a of o.foto.agents) for (const k of ['haciendo', 'espera', 'parada']) if (a[k]) frases.add(a[k]);
+  const sinTraducir = [...frases].filter((f) => traducir(f) === f);
+  assert.deepStrictEqual(sinTraducir, [], 'frases que quedan en castellano');
+});
+
+// 🔴 Falla con: en el tema claro, el rótulo de estado de cada sesión, su paso actual y los pendientes con el color
+// brillante pensado para el fondo oscuro: «Tu firma» 1,9:1, «Corriendo pruebas» 2,4:1 (recorrido del sitio del 27/11).
+// En claro el texto mezcla el color del estado con el del texto (--tinta, 50 %) y llega a 4,5:1; en oscuro va puro.
+test('T-claro LightTheme_StateTextsReadable — rótulo, paso actual y pendientes con 4,5:1 o más en claro', () => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const lum = (h) => { const [r, g, b] = hex(h).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contraste = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const mezcla = (a, b, p) => `#${hex(a).map((v, i) => Math.round((v * p + hex(b)[i] * (1 - p)) * 255).toString(16).padStart(2, '0')).join('')}`;
+  const raiz = /:root\{([^}]*)\}/.exec(HTML)[1];
+  const v = (n) => new RegExp(`--${n}:\\s*([^;]+);`).exec(raiz)[1].trim();
+  // lo mira en los estilos que el sitio pone en su armazón (siteParts), no en los de la página local: la revisión en
+  // navegador encontró la variable en el bloque que el sitio no lleva, y en el sitio el rótulo perdía su color
+  const PARTS = require(path.join(OFFICE_DIR, 'page-parts.js'));
+  const delSitio = PARTS.siteParts({ source: 'site', urlOf: (k) => `/m/${k}.js`, script: '/offices/page.js' }).style;
+  assert.match(delSitio, /:root\{--tinta:50%\}/, 'en claro, el texto de estado mezcla mitad y mitad');
+  assert.strictEqual((delSitio.match(/--tinta:100%/g) || []).length, 2, 'en oscuro (por el sistema y elegido a mano), puro');
+  assert.match(delSitio, /\.contenido-oficina\{--fg:var\(--ink\)/, 'y el color del texto del sitio, para mezclar');
+  assert.match(delSitio, /\.card\{[^}]*--c-tinta:color-mix\(in srgb,var\(--c\) var\(--tinta\),var\(--fg\)\)/);
+  assert.match(HTML, /\.card \.st\{[^}]*color:var\(--c-tinta\)/);
+  assert.match(HTML, /\.card ol\.steps li\.now\{[^}]*color:var\(--c-tinta\)/);
+  assert.doesNotMatch(CODE, /st\.style\.color=s\[1\]/, 'el color del rótulo lo pone la hoja de estilos, no el código');
+  const AST = new Function(`${/const AST=(\{[^;]*\});/.exec(CODE)[0]} return AST;`)();
+  const pendiente = /ol\.steps li\{[^}]*color:(#[0-9a-f]{6})/.exec(HTML)[1];
+  // las tarjetas van sobre la superficie: la de la oficina y la del sitio en claro (scripts/site/static/site.css)
+  const fondos = [v('surface'), '#fcfcfb'];
+  for (const [estado, [, color]] of Object.entries(AST).concat([['pendiente', ['', pendiente]]])) {
+    for (const fondo of fondos) {
+      const c = contraste(mezcla(color, v('fg'), 0.5), fondo);
+      assert.ok(c >= 4.5, `${estado} sobre ${fondo}: ${c.toFixed(1)}:1`);
+    }
+  }
+});

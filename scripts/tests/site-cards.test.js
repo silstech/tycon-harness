@@ -438,7 +438,9 @@ test('2.36-Sello_CompletoComoElAviso: el sello de Arnés dice «completa» con l
     const m = sources.construirDesdeClon(clon, { ahora: AHORA });
     return views.filasArnes(m, { ahora: AHORA }).find((l) => l.clave === 'sello').texto;
   };
-  assert.strictEqual(conSello(base), `${HOY} · completa`);
+  // el día del sello viaja con su marca de momento: la página lo dice en la hora de quien mira
+  const W = require(path.join(H.SITE, 'when.js'));
+  assert.strictEqual(W.conMomentos(conSello(base)), `${W.momento(`${HOY}T06:00:00Z`, { forma: 'fecha' })} · completa`);
   assert.match(conSello({ ...base, fuentes: { esperadas: 3, al_dia: 2 } }), /incompleta/, 'una fuente atrasada');
   assert.match(conSello({ ...base, buzon: { estado: 'no_leido', motivo: 'sin buzón' } }), /incompleta/, 'el buzón sin leer');
   assert.match(conSello({ ...base, modo: 'local', corrida: null, buzon: { estado: 'no_aplica' } }), /incompleta/, 'una página local');
@@ -613,6 +615,33 @@ test('T69 2.79-Fichas_ConUnidadYDesglose @story-2.79 @ac-62 — días o segundos
   const fuera = texto('rework_por_causa', { ...causas, fuera_de_vocabulario: [['bug-raro', 2], ['otra-cosa', 1]] }, 'es');
   assert.match(fuera, /fuera del vocabulario 3\b/, `las que quedaron fuera del vocabulario se cuentan: ${fuera}`);
   assert.doesNotMatch(fuera, /bug-raro|otra-cosa/, fuera);
+});
+
+// A142 Fichas_ConDesgloseComoDato
+// 🔴 Falla con: «Los frenos… cuántas veces frenaron y cuántas los saltearon» sólo con el total, sin los salteados;
+//    «Commits por carril» sin cuántos por carril; «¿Vuelve menos lo que pasó por el pipeline?» contestado con «2»; el
+//    desglose en un idioma solo, con la clave interna, o una clave fuera de la lista que viaja.
+test('A142 Fichas_ConDesgloseComoDato — frenos, carriles y reproceso por carril con sus partes, en los dos idiomas', () => {
+  const def = (id) => fichas.FICHAS.find((x) => x.id === id);
+  const p = (id, partes) => fichas.proyectar(def(id), { estado: 'medido', fecha: HOY, valor: 9, medidos: 9, total: 9, unidad: 'conteo', partes }, {});
+  const texto = (id, partes, idioma) => fichas.tile(p(id, partes), idioma).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const casos = [
+    ['frenos', [{ clave: 'frenaron', n: 9 }, { clave: 'saltearon', n: 4 }, { clave: 'avisaron', n: 0 }], { es: ['frenaron 9', 'los saltearon 4', 'avisaron 0'], en: ['blocked 9', 'skipped 4', 'warned 0'] }],
+    ['carriles', [{ clave: 'pipeline', n: 5 }, { clave: 'adhoc', n: 4 }, { clave: 'ninguno', n: 3 }], { es: ['por el pipeline 5', 'atajo declarado 4', 'ninguno 3'], en: ['through the pipeline 5', 'declared shortcut 4', 'none 3'] }],
+    ['rework_por_carril', [{ clave: 'vuelve_menos', n: 1 }, { clave: 'no_vuelve_menos', n: 1 }], { es: ['vuelve menos en 1', 'no vuelve menos en 1'], en: ['comes back less in 1', 'does not come back less in 1'] }],
+  ];
+  for (const [id, partes, porIdioma] of casos) {
+    for (const idioma of ['es', 'en']) {
+      const t = texto(id, partes, idioma);
+      for (const frase of porIdioma[idioma]) assert.ok(t.includes(frase), `${id} ${idioma}: «${frase}» en ${t}`);
+      assert.doesNotMatch(t, /vuelve_menos|no_vuelve_menos|frenaron:|saltearon:/, `${id} ${idioma}: sin la clave interna`);
+    }
+  }
+  // por lista blanca: una clave fuera de la lista de su ficha no viaja, y un número que no es número tampoco
+  const raro = p('carriles', [{ clave: 'CLIENTE-X', n: 2 }, { clave: 'pipeline', n: 'mucho' }, { clave: 'adhoc', n: 1 }]);
+  assert.deepStrictEqual(raro.partes, [{ clave: 'adhoc', n: 1 }]);
+  // una ficha sin partes no inventa ninguna
+  assert.strictEqual(p('frenos', undefined).partes, undefined);
 });
 
 // 8.327-Sitio_FichaMesPorMes

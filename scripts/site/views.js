@@ -19,6 +19,8 @@ const { esc, chip, umbralValido, claveDeProducto } = require('../nightly/dashboa
 const fichasDelTablero = require('./tabs/cards.js');
 const { compare: compararVersiones } = require('../setup/harness/version-order.js');
 const { t, TEXTOS } = require('./texts.js');
+// los momentos de las páginas, en la hora de quien mira: el texto lleva una marca y layout() la cambia por <time>
+const W = require('./when.js');
 /** El nombre de una fuente de la noche en un idioma; una fuente que la tabla no conoce sale con su id. */
 const nombreDeFuente = (id, idioma) => (Object.prototype.hasOwnProperty.call(TEXTOS, `fuente.${id}`) ? t(idioma, `fuente.${id}`) : id);
 const { IDIOMAS, POR_DEFECTO, valido } = require('./language.js');
@@ -35,9 +37,6 @@ function hora(marca, idioma = POR_DEFECTO) {
   const d = new Date(typeof marca === 'number' ? marca : Date.parse(marca || ''));
   return Number.isFinite(d.getTime()) ? `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC` : t(idioma, 'vista.sinHora');
 }
-
-/** «HH:MM UTC» de una marca en milisegundos. */
-const horaCorta = (ms) => `${new Date(ms).toISOString().slice(11, 16)} UTC`;
 
 /** Los códigos de estado de la lista cerrada y de los propios de una fuente: su frase vive en la tabla. */
 const CODIGOS = ['sin_red', 'sin_permiso', 'credencial_rechazada', 'parcial', 'cargando', 'fuente_vieja', 'sin_configurar', 'sin_foto', 'ilegible',
@@ -142,6 +141,9 @@ function filasInicioMantenedor(m, { ahora = Date.now(), enlaceOperaciones = null
   DONDE.maquinas_sin_confirmar = '/configuracion';
   void enlaceOperaciones;
   for (const f of filas) f.enlace = DONDE[f.clave] || null;
+  // las retrospectivas, en su lista de abajo: sólo hay lista con la foto de hoy
+  const fRet = filas.find((f) => f.clave === 'retrospectivas');
+  if (fRet && fRet.estado === 'medido') fRet.enlace = '#retros-pendientes';
   return filas;
 }
 
@@ -292,14 +294,18 @@ function filasArnes(m, { ahora = Date.now(), version = null, ultima = null, idio
   lineas.push({ clave: 'examen', titulo: T('arnes.examen'), estado: medida(e) ? 'medido' : 'no_medido', texto: medida(e) ? `${T(Number(e.fallos) === 1 ? 'arnes.examenFallos1' : 'arnes.examenFallos', { fecha: e.fecha, n: Number(e.fallos) || 0 })}${e.completo === false ? T('arnes.examenIncompleto') : ''}` : sinMedir(e) });
   const tb = m.tablero;
   const sello = medida(tb) && tb.sello ? tb.sello : null;
-  lineas.push({ clave: 'sello', titulo: T('arnes.sello'), estado: sello ? 'medido' : 'no_medido', texto: sello ? `${String(sello.generado || '').slice(0, 10)} · ${T(sello.completo ? 'arnes.completa' : 'arnes.incompleta')}` : cf(tb) });
+  lineas.push({ clave: 'sello', titulo: T('arnes.sello'), estado: sello ? 'medido' : 'no_medido', texto: sello ? `${W.marcaSiTieneHora(sello.generado, 'fecha') || String(sello.generado || '').slice(0, 10)} · ${T(sello.completo ? 'arnes.completa' : 'arnes.incompleta')}` : cf(tb) });
   lineas.push({ clave: 'version', titulo: T('arnes.version'), estado: version ? 'medido' : 'no_medido', texto: version || T('arnes.sinVersion') });
   // la última publicada: nunca «al día» sin haber mirado
   if (ultima) {
-    // contra qué se compara (stable) y cuándo se miró
+    // contra qué se compara (el canal estable) y cuándo se miró; la fecha es la de la imagen armada, no la de la
+    // versión, y sin la hora en que se miró no se dice nada de cuándo
     if (ultima.estado === 'medido') {
+      // las dos fechas viajan como marcas que layout() cambia por <time>, en la hora de quien mira; sin la hora en que
+      // se miró, la frase no la nombra
       lineas.push({ clave: 'ultima', titulo: T('arnes.ultima'), estado: 'medido', texto: T('arnes.ultimaMirada', { version: ultima.version,
-        del: ultima.creada ? ` ${T('vista.delParen', { fecha: String(ultima.creada).slice(0, 10) })}` : '', hora: Number.isFinite(ultima.mirado) ? horaCorta(ultima.mirado) : T('vista.sinHora') }) });
+        armada: ultima.creada ? T('arnes.ultimaArmada', { fecha: W.marcaSiTieneHora(ultima.creada, 'fecha') }) : '',
+        mirada: Number.isFinite(ultima.mirado) ? T('arnes.ultimaMiradaA', { hora: W.marca(ultima.mirado, 'hora') }) : '' }) });
     }
     else {
       // el motivo es de la lista cerrada de latest-release.js: se dice en el idioma de la página
@@ -319,9 +325,10 @@ function tile(f, idioma) {
   const pie = f.enlace ? `<div class="t-foot"><a href="${esc(f.enlace)}">${esc(T(f.enlace.startsWith('#') ? 'vista.verLaLista' : f.enlace === '/arnes' ? 'vista.verEnArnes' : 'vista.dondeSeDecide'))}</a></div>` : '';
   if (f.estado === 'cargando') return `<div class="tile cargando">${chip('', T('vista.cargando'))}<div class="t-label">${esc(f.titulo)}</div><div class="t-den">${esc(f.motivo)}</div>${pie}</div>`;
   if (f.estado !== 'medido') return `<div class="tile blind">${chip('blind', T('vista.noMedido'))}<div class="t-label">${esc(f.titulo)}</div><div class="t-val">${esc(T('vista.falta'))}</div><div class="t-den">${esc(f.motivo || T('vista.noMedido'))}</div>${pie}</div>`;
-  const est = f.valor > 0 ? 'warn' : 'ok';
+  // lo que sólo se sigue no lleva el rombo ni el amarillo de lo que hay que decidir: el estado neutro, con su propia marca
+  const est = f.valor > 0 ? (f.seguimiento ? 'neutro' : 'warn') : 'ok';
   // de cuándo es la cuenta: al momento (la de Mantenimiento), leída recién (las máquinas) o de la noche
-  const cuando = f.alMomento ? T('vista.alMomento') : Number.isFinite(f.leido) ? T('vista.leido', { hora: horaCorta(f.leido) }) : f.fecha ? T('vista.deLaNocheDel', { fecha: f.fecha }) : null;
+  const cuando = f.alMomento ? T('vista.alMomento') : Number.isFinite(f.leido) ? T('vista.leido', { hora: W.marca(f.leido, 'hora') }) : f.fecha ? T('vista.deLaNocheDel', { fecha: f.fecha }) : null;
   return `<div class="tile ${est}">${chip(est, T(f.valor > 0 ? (f.seguimiento ? 'vista.seguimiento' : 'vista.decidir') : 'vista.nada'))}<div class="t-label">${esc(f.titulo)}</div><div class="t-val">${esc(f.valor)}</div>${cuando ? `<div class="t-den">${esc(cuando)}</div>` : ''}${f.detalle ? `<div class="t-den">${esc(f.detalle)}</div>` : ''}${pie}</div>`;
 }
 
@@ -391,8 +398,8 @@ function layout(ctx, titulo, cuerpo, lede = null) {
   const tokSesion = ctx && ctx.sesion && typeof ctx.sesion.tok === 'string' ? ctx.sesion.tok : '';
   const sesion = cuenta ? `<form class="salir" method="post" action="/auth/logout"><span>${esc(cuenta)}</span> <input type="hidden" name="tok" value="${esc(tokSesion)}"> <button type="submit">${esc(T('barra.salir'))}</button></form>` : '';
   const bandas = [
-    ctx && ctx.bandaConfig ? banda(T('banda.config', { desde: hora(ctx.bandaConfig.desde, idioma), motivo: ctx.bandaConfig.motivo })) : '',
-    ctx && ctx.bandaRefresco ? banda(T('banda.refresco', { desde: hora(ctx.bandaRefresco.desde, idioma), motivo: fraseDeCodigo(ctx.bandaRefresco.estado, idioma) || ctx.bandaRefresco.estado })) : '',
+    ctx && ctx.bandaConfig ? banda(T('banda.config', { desde: W.marca(ctx.bandaConfig.desde) || hora(ctx.bandaConfig.desde, idioma), motivo: ctx.bandaConfig.motivo })) : '',
+    ctx && ctx.bandaRefresco ? banda(T('banda.refresco', { desde: W.marca(ctx.bandaRefresco.desde) || hora(ctx.bandaRefresco.desde, idioma), motivo: fraseDeCodigo(ctx.bandaRefresco.estado, idioma) || ctx.bandaRefresco.estado })) : '',
     ctx && ctx.avisoVariable ? banda(T('banda.variable')) : '',
     ctx && ctx.avisoEtiqueta ? banda(T('banda.etiqueta')) : '',
     ctx && ctx.avisoSesiones ? banda(T('banda.sesiones')) : '',
@@ -405,7 +412,7 @@ function layout(ctx, titulo, cuerpo, lede = null) {
   // el pie: la versión que corre, su licencia, sus créditos y de quién es el sitio
   const pie = `<footer class="pie"><span>${esc(T('barra.producto'))}${ctx && ctx.version ? ` v${esc(ctx.version)}` : ''}</span><a href="/licencia">${esc(T('pie.licencia'))}</a><a href="/creditos">${esc(T('pie.creditos'))}</a><span class="esp"></span>${m.nombre ? `<span>© ${esc(m.nombre)}</span>` : ''}</footer>`;
   const pieLateral = `<div class="side-foot"><span class="lab-tema">${esc(T('barra.tema'))}</span>${selectorDeTema(idioma)}<span class="lab-tema">${esc(T('barra.idioma'))}</span>${selectorDeIdioma(idioma, rutaDe(ctx))}</div>`;
-  return `<!doctype html><html lang="${idioma}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${recargar}<title>${esc(titulo)} · ${esc(T('barra.lema'))}</title><link rel="stylesheet" href="/static/site.css"><script src="/static/site.js"></script></head><body>${barra}<div class="shell"><aside class="side">${nav}${pieLateral}</aside><main><header class="s-head"><div><h1>${esc(titulo)}</h1>${lede ? `<p>${esc(lede)}</p>` : ''}</div></header>${bandas}${cuerpo}${pie}</main></div></body></html>`;
+  return W.conMomentos(`<!doctype html><html lang="${idioma}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${recargar}<title>${esc(titulo)} · ${esc(T('barra.lema'))}</title><link rel="stylesheet" href="/static/site.css"><script src="/static/site.js"></script></head><body>${barra}<div class="shell"><aside class="side">${nav}${pieLateral}</aside><main><header class="s-head"><div><h1>${esc(titulo)}</h1>${lede ? `<p>${esc(lede)}</p>` : ''}</div></header>${bandas}${cuerpo}${pie}</main></div></body></html>`);
 }
 
 function seccion(titulo, html, aparte = null, id = null) { return `<section class="q"${id ? ` id="${esc(id)}"` : ''}><div class="q-head"><h2>${esc(titulo)}</h2>${aparte ? `<span class="aside">${esc(aparte)}</span>` : ''}</div>${html}</section>`; }
@@ -451,6 +458,19 @@ function prsTrabados(prs, idioma) {
 }
 
 /**
+ * La lista de las retrospectivas pendientes de la foto de hoy, a donde lleva su ficha: cada una con su repo, su merge y
+ * sus días, y cómo se hace (en la máquina de quien mergeó). Sin la foto de hoy, nada: la ficha ya dice por qué.
+ */
+function retrosPendientes(ret, idioma) {
+  if (!medida(ret) || !Array.isArray(ret.pendientes)) return '';
+  const T = (k, v) => t(idioma, k, v);
+  const lista = [...ret.pendientes].sort((a, b) => (Number.isFinite(b.dias) ? b.dias : -1) - (Number.isFinite(a.dias) ? a.dias : -1));
+  const fila = (r) => renglonDeLista(null, [esc(r.repo), r.merge ? `merge ${esc(r.merge)}` : null, Number.isFinite(r.dias) ? esc(dias(r.dias, idioma)) : null].filter(Boolean).join(' · '));
+  const cuerpo = `<p class="q-note">${esc(T('inicio.retrosComo'))}</p>` + (lista.length ? `<ul class="lista dos">${lista.map(fila).join('')}</ul>` : `<p class="q-note">${esc(T('vista.ninguno'))}</p>`);
+  return seccion(T('inicio.retrospectivas'), cuerpo, T('vista.deLaNocheDel', { fecha: ret.fecha }), 'retros-pendientes');
+}
+
+/**
  * Las listas a las que llevan las tarjetas de «Qué decidir hoy»: una sección por tarjeta (`#decidir-<clave>`), una
  * ficha por renglón con el enlace a su pedido o el motivo por el que no lo tiene (decisions.js). Lo declarado se decide
  * en un archivo de cada repo, no en un pedido: la sección lo dice y lista los que vencen.
@@ -482,15 +502,7 @@ function listasDeDecision(m, { enlaceOperaciones = null, remotoOperaciones = nul
       const noches = Number.isInteger(d.noches) ? (d.noches === 1 ? T('decidir.unaNoche') : T('decidir.noches', { n: d.noches })) : null;
       return [gravedad ? T(`decidir.gravedad.${gravedad}`) : null, noches].filter(Boolean);
     };
-    // una aceptada arranca por lo que importa —el paquete, su gravedad y sus noches— y sigue con su seguimiento; el id
-    // de la ficha va al final, en gris, para buscarla en el repo de operaciones
-    const filaAceptada = (d) => {
-      const queEs = [d.titulo || d.id, ...gravedadYNoches(d)].map(esc).join(' · ');
-      const seguimiento = d.enlace && enlace(d.enlace) ? `<a href="${esc(d.enlace)}">${esc(T('decidir.pedido', { n: d.pr }))}</a>`
-        : d.sinLugar === 'en_su_tarea' ? `<a href="/mantenimiento">${esc(T('decidir.corto.en_su_tarea'))}</a>`
-          : esc(DEC.fraseSinLugar(d.sinLugar, idioma, { n: d.pr }));
-      return `<li><span>${queEs} — ${seguimiento}</span>${d.titulo ? `<span class="muted">${esc(d.id)}</span>` : ''}</li>`;
-    };
+    // todas las listas con la misma forma: el seguimiento adelante, después el id de la ficha, el paquete y sus noches
     const fila = (d) => {
       const nombre = [esc(d.id), d.titulo ? esc(d.titulo) : null, ...gravedadYNoches(d).map(esc)].filter(Boolean).join(' · ');
       return d.enlace && enlace(d.enlace)
@@ -498,10 +510,6 @@ function listasDeDecision(m, { enlaceOperaciones = null, remotoOperaciones = nul
         : d.sinLugar === 'en_su_tarea' ? renglonDeLista(`<a href="/mantenimiento">${esc(DEC.fraseSinLugar(d.sinLugar, idioma))}</a>`, nombre)
           : renglonDeLista(null, `${nombre} · ${esc(DEC.fraseSinLugar(d.sinLugar, idioma, { n: d.pr, tarea: d.tarea, proyecto: d.proyecto || '—' }))}`);
     };
-    if (def.rubro === 'aceptadas_sin_resolver') {
-      out.push(seccion(titulo, suyas.length ? `<ul class="lista">${suyas.map(filaAceptada).join('')}</ul>` : `<p class="q-note">${esc(T('vista.ninguna'))}</p>`, T('vista.deLaNocheDel', { fecha: m.decisiones.fecha }), `decidir-${clave}`));
-      continue;
-    }
     out.push(seccion(titulo, ul(suyas.map(fila)), T('vista.deLaNocheDel', { fecha: m.decisiones.fecha }), `decidir-${clave}`));
   }
   return out.join('');
@@ -514,7 +522,7 @@ function paginaInicio(ctx) {
   if (ctx.quien.rol === 'maintainer') {
     const filas = filasInicioMantenedor(m, { ahora: ctx.ahora, enlaceOperaciones: ctx.enlaceOperaciones, idioma, esperan: ctx.esperan });
     // mientras alguna ficha carga, la página se recarga sola
-    return layout(filas.some((f) => f.estado === 'cargando') ? { ...ctx, recargar: 10 } : ctx, T('pestana.inicio'), seccion(T('inicio.queDecidir'), `<div class="grid">${filas.map((f) => tile(f, idioma)).join('')}</div>`, T('inicio.cadaFicha')) + prsTrabados(m.prs, idioma) + listasDeDecision(m, { enlaceOperaciones: ctx.enlaceOperaciones, remotoOperaciones: ctx.remotoOperaciones, ahora: ctx.ahora, idioma }), T('inicio.ledeMantiene'));
+    return layout(filas.some((f) => f.estado === 'cargando') ? { ...ctx, recargar: 10 } : ctx, T('pestana.inicio'), seccion(T('inicio.queDecidir'), `<div class="grid">${filas.map((f) => tile(f, idioma)).join('')}</div>`, T('inicio.cadaFicha')) + prsTrabados(m.prs, idioma) + retrosPendientes(m.retros, idioma) + listasDeDecision(m, { enlaceOperaciones: ctx.enlaceOperaciones, remotoOperaciones: ctx.remotoOperaciones, ahora: ctx.ahora, idioma }), T('inicio.ledeMantiene'));
   }
   const d = inicioDev(m, { ahora: ctx.ahora, idioma });
   const corridasPestana = (ctx.pestanas || []).some((p) => p.id === 'corridas');
@@ -524,7 +532,6 @@ function paginaInicio(ctx) {
     : filaNo(T('inicio.tusCorridas'), d.corridas.motivo);
   // cada renglón: el enlace (o el marcador vacío) y el texto; sin enlace, el número va con el texto
   const lista = (items, fmt) => (items.length ? `<ul class="lista dos">${items.map((x) => renglonDeLista(...fmt(x))).join('')}</ul>` : `<p class="q-note">${esc(T('vista.ninguno'))}</p>`);
-  const conNumero = (u, numero, resto) => (enlace(u) ? [`<a href="${esc(u)}">${numero}</a>`, resto] : [null, `${numero} ${resto}`]);
   const prs = d.prs.estado === 'medido' ? lista(d.prs.lista, (p) => renglonDePr(p, idioma)) : filaNo(T('inicio.tusPrs'), d.prs.motivo);
   const ped = d.pedidos.estado === 'medido' ? lista(d.pedidos.lista, (p) => renglonDePedido(p, idioma)) : filaNo(T('inicio.loAsignado'), d.pedidos.motivo);
   const proy = d.proyectos.estado === 'medido' ? lista(d.proyectos.lista, (p) => [null, esc(p)]) : filaNo(T('inicio.tusProyectos'), d.proyectos.motivo);
@@ -585,7 +592,8 @@ function filasEstimaciones(m, { idioma = POR_DEFECTO } = {}) {
       }
       total.parciales.real = filas.some((f) => !f.real || !f.real.cerrada);
       // un repo del producto que no se midió deja todo el total parcial: faltan sus épicas
-      if (repos.some((r) => r.estado === 'no_medido')) for (const k of ['rango', 'plan', 'vigente', 'real']) total.parciales[k] = true;
+      total.faltaUnRepo = repos.some((r) => r.estado === 'no_medido');
+      if (total.faltaUnRepo) for (const k of ['rango', 'plan', 'vigente', 'real']) total.parciales[k] = true;
     }
     return { producto: p.producto, repos, total, sin_fotos: !suyas.length };
   });
@@ -610,7 +618,7 @@ function paginaProyectos(ctx) {
   const celdaDep = (d) => {
     if (d.estado === 'no_medido') return `<td class="nm" colspan="3">${noMedido(d.motivo)}</td>`;
     // la fecha no parte renglón: en una columna angosta se partiría en dos
-    const fecha = (x) => (x && x.fecha ? `<span class="fecha">${esc(String(x.fecha).slice(0, 10))}</span>` : '—');
+    const fecha = (x) => (x && x.fecha ? `<span class="fecha">${esc(W.marcaSiTieneHora(x.fecha, 'fecha') || String(x.fecha).slice(0, 10))}</span>` : '—');
     const atraso = d.produccion ? T('proyectos.atrasoSinComparar') : T('proyectos.atrasoSinProduccion');
     const prod = `${fecha(d.produccion)}${d.produccion_atrasada === true ? ` · <b>${esc(T('proyectos.atrasada'))}</b>` : (d.produccion_atrasada === null ? ` · ${esc(atraso)}` : '')}`;
     const ea = d.aprobacion && typeof d.aprobacion === 'object' ? d.aprobacion.estado : d.aprobacion;
@@ -669,11 +677,13 @@ function seccionEstimaciones(m, idioma) {
     if (p.total) {
       const tt = p.total;
       // una suma a la que le falta alguna épica lo dice: un total parcial no se lee como completo
-      const marca = (texto, falta) => (falta && texto !== '—' ? `${texto} ${T('proyectos.est.parcial')}` : texto);
+      const marca = (texto, falta, motivo = 'proyectos.est.parcial') => (falta && texto !== '—' ? `${texto} ${T(motivo)}` : texto);
+      // lo real es parcial porque alguna épica sigue abierta; sólo un repo sin medir deja afuera épicas
+      const motivoReal = tt.faltaUnRepo ? 'proyectos.est.parcial' : 'proyectos.est.parcialAbierta';
       const celdas = tt.unidad
-        ? `<td>${esc(marca(rango(tt.min, tt.max, tt.unidad), tt.parciales.rango))}</td><td>${esc(marca(con(tt.plan, tt.unidad), tt.parciales.plan))}</td><td>${esc(marca(con(tt.vigente, tt.unidad), tt.parciales.vigente))}</td>`
+        ? `<td>${esc(marca(rango(tt.min, tt.max, tt.unidad), tt.parciales.rango && tt.min !== null))}</td><td>${esc(marca(con(tt.plan, tt.unidad), tt.parciales.plan))}</td><td>${esc(marca(con(tt.vigente, tt.unidad), tt.parciales.vigente))}</td>`
         : `<td colspan="3">${esc(marca(T('proyectos.est.porUnidad', { sumas: porUnidad(tt.por_unidad) }), tt.parciales.vigente))}</td>`;
-      filas.push(`<tr class="total" data-producto="${esc(p.producto)}"><th scope="row">${esc(p.producto)}</th><td><b>${esc(T('proyectos.est.totalDelProducto'))}</b></td>${celdas}<td>${esc(marca(tt.real === null ? '—' : con(tt.real, 'hours'), tt.parciales.real))}</td></tr>`);
+      filas.push(`<tr class="total" data-producto="${esc(p.producto)}"><th scope="row">${esc(p.producto)}</th><td><b>${esc(T('proyectos.est.totalDelProducto'))}</b></td>${celdas}<td>${esc(marca(tt.real === null ? '—' : con(tt.real, 'hours'), tt.parciales.real, motivoReal))}</td></tr>`);
     }
   }
   const tabla = `<div class="card tbl-wrap"><table class="tabla" id="tabla-estimaciones"><thead><tr>${cab}</tr></thead><tbody>${filas.join('')}</tbody></table></div>`;
@@ -737,7 +747,7 @@ const paginaSaliste = (ctx = {}) => {
   ].join(''));
 };
 const paginaSinMantenedores = (ctx) => layout({ quien: ctx.quien, sesion: ctx.sesion, idioma: idiomaDe(ctx), url: ctx.url }, t(idiomaDe(ctx), 'sinMantenedores.titulo'), `<p class="lede">${esc(t(idiomaDe(ctx), 'sinMantenedores.texto'))}</p>`);
-const paginaFrenado = ({ desde, idioma = POR_DEFECTO, url = null }) => layout({ idioma, url }, t(idioma, 'frenado.titulo'), `<p class="lede">${esc(t(idioma, 'frenado.texto', { desde: hora(desde, idioma) }))}</p>`);
+const paginaFrenado = ({ desde, idioma = POR_DEFECTO, url = null }) => layout({ idioma, url }, t(idioma, 'frenado.titulo'), `<p class="lede">${esc(t(idioma, 'frenado.texto', { desde: W.marca(desde) || hora(desde, idioma) }))}</p>`);
 // se recarga sola cada 5 segundos hasta que el sitio tenga lo que necesita
 const paginaCargando = (ctx = {}) => layout({ ...ctx, recargar: 5 }, t(idiomaDe(ctx), 'cargando.titulo'), `<p class="lede">${esc(t(idiomaDe(ctx), 'cargando.texto'))}</p>`);
 

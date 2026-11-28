@@ -481,7 +481,7 @@ test('T8 Dev_SoloSusCorridas_SinConteosGlobales @story-2.27 @ac-8', async () => 
     assert.deepStrictEqual(l.maquinas.lista.map((m) => m.nombre), ['maq-a'], 'las opciones de máquina, sólo las suyas');
     const p = (await h.pedir('/corridas', { cookie: dev })).texto;
     const sello = /<div class="stamp">([\s\S]*?)<\/div>/.exec(p)[1];
-    assert.match(sinTags(sello), /^Ejecuciones: 2 Con consumo medido: 1 de 2 Con controles: 2 de 2 Llegaron al final: 2 de 2 Generado: \d{4}-\d\d-\d\d \d\d:\d\d UTC · versión del sitio Alcance: maq-a 2$/);
+    assert.match(sinTags(sello), /^Ejecuciones: 2 Con consumo medido: 1 de 2 Con controles: 2 de 2 Llegaron al final: 2 de 2 Generado: \d{4}-\d\d-\d\d \d\d:\d\d UTC · versión del sitio desconocida Alcance: maq-a 2$/);
     assert.doesNotMatch(sello, /archivos|esta máquina|undefined/);
     assert.doesNotMatch(p, /href="\/arnes\/tablero"/, 'el eyebrow no enlaza una página que el dev no puede abrir');
   });
@@ -1360,7 +1360,7 @@ test('2.60-T11 FrasesDeLaCasa_CadaRama @story-2.60 @ac-1 @ac-3 — los tramos fu
 
 test('2.60-T12 DatosDeAfuera_NoSeTraducen @story-2.60 @ac-1 — la API traduce sólo los campos de la casa', () => {
   // lo de afuera que coincide con un molde: un producto, una story, el título, los asuntos de los commits, un archivo
-  const det = { story: 'Revisores', producto: 'pruebas', maquina: 'pruebas', descripcion: { texto: 'Pago confirmado', fuente: 'el título de la story' },
+  const det = { story: 'Revisores', producto: 'pruebas', maquina: 'pruebas', descripcion: { texto: 'Pago confirmado', fuente: 'el título de la historia' },
     cambios: { titulo: 'antes, el login fallaba', commits: [{ h: 'a', s: 'pruebas' }, { h: 'b', s: 'fix: el pedido queda confirmado' }],
       archivos: [{ f: 'Arranque' }, { f: 'fuera del repo: x.txt' }], motivo: 'la conversación no se pudo leer (Z_DATA_ERROR)' },
     tramos: [{ nombre: 'Revisores + Hallazgos' }] };
@@ -1898,6 +1898,9 @@ test('T4 2.77-Guardada_BandaRecargaYApi @story-2.77 @ac-6 @ac-7', async () => {
     const p = await h.pedir('/corridas', { cookie: lead });
     assert.strictEqual(p.status, 200);
     assert.match(p.texto, BANDA);
+    // 🔴 la hora de la guardada, en la hora de quien mira: el instante viaja en UTC dentro de <time>, no un «UTC» suelto
+    // al lado del texto
+    assert.match(p.texto, /Se muestra la vista guardada el <time datetime="\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z" data-forma="fechaHora">\d{4}-\d\d-\d\d \d\d:\d\d UTC<\/time>;/);
     assert.match(p.texto, RECARGA);
     // llega la bajada entera: el armado nuevo se pone, sin banda ni recarga, y reemplaza la guardada
     fuentes.st.personas = { informados: H.informados(INFORMADOS), repos: null };
@@ -1917,6 +1920,7 @@ test('T4 2.77-Guardada_BandaRecargaYApi @story-2.77 @ac-6 @ac-7', async () => {
     assert.strictEqual(p.status, 200, p.texto);
     assert.match(p.texto, /No se pudo rearmar la vista de ejecuciones/);
     assert.ok(p.texto.includes(guardada.slice(0, 16).replace('T', ' ')), 'con la fecha de la guardada');
+    assert.match(p.texto, /desde <time datetime="[^"]+Z" data-forma="fechaHora">[^<]+ UTC<\/time> \(código/, 'en la hora de quien mira');
     assert.doesNotMatch(p.texto, BANDA);
     assert.doesNotMatch(p.texto, RECARGA);
   });
@@ -2479,4 +2483,187 @@ test('T-A46 Cambios_ADemanda_LaFilaTieneTope_PorPersonaYEntera_YSeSueltaSiElPedi
     assert.ok(recibe && !recibe.cancelado && !recibe.ocupado, `el que se quedó: ${JSON.stringify(recibe)}`);
     assert.strictEqual(bajadas.length, 2, `se bajaron las dos: ${bajadas.length}`);
   });
+});
+
+// 🔴 mutación: el detalle con «Trabajo · espera · entre pasos» que no suma lo que dice «duró», sin decir dónde está lo
+// que falta (lo que no se pudo partir y lo que queda fuera de los pasos anotados).
+test('A129 Detalle_LaDuracionCierra_DiceLoQueQuedaFuera — trabajo, espera y entre pasos más lo que queda fuera suman lo que duró', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = await entrar(DEV_A);
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const det = (await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json;
+    const MIN = 60000;
+    const conTiempos = (dur, t) => sinTags(c.w.__detalle({ ...det, dur_ms: dur, tiempos: { estado: 'medida', motivo: null, trabajo_medido: true, estimados: [], ...t } }));
+    // 2 h que se reparten 32 + 8 + 18 = 58 min: los otros 62 min se dicen
+    const falta = conTiempos(120 * MIN, { trabajo_ms: 32 * MIN, espera_humana_ms: 8 * MIN, entre_pasos_ms: 18 * MIN, sin_repartir_ms: 0 });
+    assert.match(falta, /Trabajo 32 min · espera 8 min · entre pasos 18 min · fuera de los pasos 62 min/);
+    // lo que no se pudo partir entra en lo que queda fuera
+    assert.match(conTiempos(120 * MIN, { trabajo_ms: 32 * MIN, espera_humana_ms: 8 * MIN, entre_pasos_ms: 18 * MIN, sin_repartir_ms: 20 * MIN }), /fuera de los pasos 62 min/);
+    // si cierra (menos de un minuto de diferencia), no se agrega nada
+    assert.doesNotMatch(conTiempos(58 * MIN + 20000, { trabajo_ms: 32 * MIN, espera_humana_ms: 8 * MIN, entre_pasos_ms: 18 * MIN, sin_repartir_ms: 0 }), /fuera de los pasos/);
+    // con la espera sin medir no se puede saber cuánto queda fuera: no se inventa
+    assert.doesNotMatch(conTiempos(120 * MIN, { trabajo_ms: 32 * MIN, espera_humana_ms: null, entre_pasos_ms: 18 * MIN, sin_repartir_ms: 0 }), /fuera de los pasos/);
+  });
+});
+
+// 🔴 mutación: las barras del consumo por paso con el número interno de la fila (0 a 9) delante del nombre: no es el de
+// «Cómo trabaja» (01 a 11), así que «el paso 8» nombra dos pasos distintos según la pestaña.
+test('A130 Detalle_PasosPorNombre_SinNumeroInterno — el consumo por paso nombra cada paso sin el número de la fila', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = await entrar(DEV_A);
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const html = c.w.__detalle((await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json);
+    const barras = (html.match(/<div class="b"><span>[^<]*<\/span>/g) || []);
+    assert.ok(barras.length >= 2, `las barras del consumo por paso: ${barras.length}`);
+    for (const b of barras) assert.doesNotMatch(b, /<span>\d+ /, `sin el número interno: ${b}`);
+    assert.ok(barras.some((b) => b.includes('<span>Arranque</span>')), 'el paso, por su nombre');
+  });
+});
+
+// 🔴 mutación: la ficha de los tokens de una ejecución sin decir que deja afuera a los revisores (en el detalle consumen
+// aparte, a veces más del doble): quien la lee cree que una ejecución cuesta eso.
+test('A133 FichaTokens_DiceQueDejaAfueraALosRevisores — la mediana es de la conversación principal y lo dice', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const c = await clienteDelSitio(h, await entrar(LEAD));
+    c.w.__aplicar();
+    const fichas = c.nodos.fichas.innerHTML;
+    const ficha = fichas.split('<div class="tile').find((x) => x.includes('Tokens de una ejecución (mediana)')) || '';
+    assert.ok(ficha, 'la ficha está');
+    assert.match(sinTags(ficha), /sólo la conversación principal: los revisores consumen aparte/);
+  });
+});
+
+// 🔴 mutación: la ficha de la noche que cuenta los bloqueos de TODO el registro de controles (también el commit y los
+// ganchos) llamada «control del pipeline», como la columna Controles de la tabla, que cuenta sólo los de cada ejecución.
+test('A132 FichaBloqueos_NoSeConfundeConLosControlesDeLaTabla — dice de qué registro cuenta y que no es la columna', () => {
+  const TX = require(path.join(__dirname, '..', 'site', 'texts.js'));
+  for (const idioma of ['es', 'en']) {
+    const titulo = TX.t(idioma, 'ficha.bloqueos.titulo');
+    assert.doesNotMatch(titulo, /del pipeline|pipeline control/, `${idioma}: el título no es el de la columna`);
+  }
+  assert.match(TX.t('es', 'ficha.bloqueos.titulo'), /registro de controles/);
+  assert.match(TX.t('es', 'ficha.bloqueos.paraQue'), /no es la columna Controles/);
+  assert.match(TX.t('en', 'ficha.bloqueos.paraQue'), /not the Controls column/);
+});
+
+// 🔴 mutación: el subtítulo del detalle como «mejora — el nombre del archivo de la story», que se lee como un texto de
+// relleno: la fuente tiene que decir que es de dónde salió el título.
+test('A146 Detalle_SubtituloDiceDeDondeSalio — «mejora (según el nombre del archivo de la historia)»', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = await entrar(DEV_A);
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const det = (await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json;
+    const html = c.w.__detalle({ ...det, descripcion: { texto: 'mejora', fuente: 'el nombre del archivo de la historia' } });
+    const sub = (html.match(/<div class="det-desc">[\s\S]*?<\/div>/) || [''])[0];
+    assert.match(sinTags(sub), /mejora \(según el nombre del archivo de la historia\)/);
+    assert.doesNotMatch(sub, / — /);
+  });
+  // la fuente, en castellano, dice «historia»
+  const RT = require(path.join(__dirname, '..', 'nightly', 'dashboard', 'runs-texts.js'));
+  const textos = JSON.stringify(RT);
+  assert.ok(!/el nombre del archivo de la story|el título de la story/.test(textos), 'la fuente en castellano dice «historia»');
+});
+
+// 🔴 mutación: las marcas del eje de la línea de tiempo en horas con un decimal redondeado («1,3 h» por 1 h 15′).
+test('A149 LineaDeTiempo_MarcasEnHorasYMinutos — «1 h 15′», nunca «1,3 h»', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = await entrar(DEV_A);
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const det = (await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json;
+    const svg = c.w.__detalle({ ...det, dur_ms: 120 * 60000 });
+    const marcas = (svg.match(/font-size="10" fill="var\(--ink-3\)">[^<]*<\/text>/g) || []).map((x) => x.replace(/^[^>]*>|<\/text>$/g, ''));
+    assert.ok(marcas.includes('1 h 15′'), `las marcas: ${marcas.join(', ')}`);
+    assert.ok(marcas.includes('2 h'), 'la hora entera, sin minutos');
+    assert.ok(!marcas.some((m) => /\d[.,]\d h/.test(m)), `sin horas con decimales: ${marcas.join(', ')}`);
+  });
+});
+
+// 🔴 mutación: en inglés, el nombre técnico entre paréntesis que repite el mismo nombre («tests (tests)», «builds
+// (build)»), o «a test or the build that did not pass and were fixed».
+test('A151 Ingles_ControlesSinNombreRepetido_YConcordancia — «tests», no «tests (tests)»; otro nombre sí lleva el técnico', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = `${await entrar(DEV_A)}; sitio-idioma=en`;
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const html = c.w.__detalle((await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json);
+    assert.doesNotMatch(html, /tests \(tests\)|builds \(build\)/, 'sin el mismo nombre entre paréntesis');
+    assert.match(html, />tests</);
+  });
+  const RT = require(path.join(__dirname, '..', 'nightly', 'dashboard', 'runs-texts.js'));
+  const en = JSON.stringify(RT);
+  assert.ok(!/did not pass and were fixed/.test(en), 'concordancia: «did not pass and was fixed»');
+});
+
+// 🔴 mutación: el recuadro de consumo con un renglón «modelos:» vacío cuando la ejecución no trae ningún modelo (A145).
+test('A145 Consumo_SinModelos_SinRenglonVacio — sin modelos no hay renglón «modelos:»; con uno, sí', async () => {
+  await conPestana({ fuentes: fuentesCon({ espejo: mundo() }) }, async ({ h, entrar }) => {
+    const dev = await entrar(DEV_A);
+    const c = await clienteDelSitio(h, dev);
+    const lista = (await h.pedir('/api/corridas', { cookie: dev })).json;
+    const a1 = lista.corridas.find((x) => x.story === '3.1');
+    const det = (await h.pedir(`/api/corridas/${a1.id}`, { cookie: dev })).json;
+    assert.strictEqual(det.consumo.estado, 'medido', 'la ejecución tiene consumo');
+    const conModelos = (por) => c.w.__detalle({ ...det, consumo: { ...det.consumo, por_modelo: por } });
+    assert.doesNotMatch(conModelos({}), /<p class="kv">modelos: <\/p>/, 'sin modelos, sin el renglón vacío');
+    assert.doesNotMatch(conModelos({}), />modelos: </);
+    assert.match(conModelos({ 'claude-opus-5-5': { respuestas: 3 } }), /modelos: claude-opus-5-5 3/);
+  });
+});
+
+// ── A196: en el celular, los gráficos de Ejecuciones se achicaban con la pantalla y su letra quedaba en 3 a 4 px ──────
+// Un gráfico se dibuja en su ancho propio (W) y el navegador lo escala: la letra que se ve mide su tamaño por el ancho
+// dibujado sobre W. En su ancho mínimo, ningún rótulo de los gráficos ni de la línea de tiempo baja de 9 px, en la
+// página de la noche y en el sitio; y la caja de cada uno se desliza de costado en vez de cortarlo.
+test('A196 Corridas_GraficosLegiblesEnElCelular — la letra de los gráficos y de la línea de tiempo no baja de 9 px en su ancho mínimo', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(raiz, 'scripts', 'nightly', 'dashboard', 'runs.js'), 'utf8');
+  const css = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'static', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const cuerpo = (nombre) => {
+    const i = src.indexOf(`  function ${nombre}(`);
+    assert.ok(i >= 0, `está la función ${nombre}`);
+    return src.slice(i, src.indexOf('\n  function ', i + 10));
+  };
+  // la regla del sitio que fija el ancho mínimo del svg de una caja: la última que la nombra, o la general
+  const reglas = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), dec: m[2] }));
+  const minimoEnElSitio = (caja) => {
+    let px = null;
+    for (const r of reglas) {
+      const mw = /min-width:(\d+)px\s*!important/.exec(r.dec) || (/min-width:0\s*!important/.test(r.dec) ? [null, '0'] : null);
+      if (!mw) continue;
+      const sels = r.sel.split(',').map((s) => s.trim());
+      if (sels.includes('.shell .corridas svg') && px === null) px = Number(mw[1]);
+      if (sels.includes(`.shell .corridas ${caja} svg`) || sels.includes(`.shell .corridas ${caja}>svg`)) px = Number(mw[1]);
+    }
+    return px;
+  };
+  for (const [nombre, caja] of [['graficoSemanas', '#gsem'], ['graficoPasos', '#gpasos'], ['timeline', '.tl']]) {
+    const c = cuerpo(nombre);
+    const W = Number(/var W = (\d+)/.exec(c)[1]);
+    const letras = [...c.matchAll(/font-size="(?:' \+ \(f \? )?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+    assert.ok(letras.length, `${nombre}: tiene rótulos`);
+    const letra = Math.min(...letras);
+    const noche = Number(/min-width:(\d+)px/.exec(c)[1]);
+    const sitio = minimoEnElSitio(caja);
+    assert.ok(letra * noche / W >= 9, `${nombre}: en la página de la noche la letra baja a ${(letra * noche / W).toFixed(1)} px (${letra} de ${W}, a ${noche} px)`);
+    assert.ok(letra * sitio / W >= 9, `${nombre}: en el sitio la letra baja a ${(letra * sitio / W).toFixed(1)} px (${letra} de ${W}, a ${sitio} px)`);
+    const id = caja.slice(1);
+    assert.match(src, new RegExp(`(^|[},])\\s*[^{}]*\\${caja[0]}${id}(?![\\w-])[^{}]*\\{[^}]*overflow-x:auto`, 'm'), `${caja}: su caja se desliza de costado`);
+  }
+  // el ancho mínimo es del gráfico, no de cada svg de su caja: el iconito de «línea base» de la leyenda, estirado a 600
+  // px, dejaba un hueco de 200 px debajo del gráfico
+  assert.doesNotMatch(css, /#gsem svg|#gpasos svg/, 'la regla de los gráficos alcanza sólo al gráfico (#gsem>svg, #gpasos>svg)');
+  // en el escritorio no se deslizan: la columna de la grilla de los gráficos es al menos su ancho mínimo más el relleno
+  // de la ficha (19 px de cada lado y el borde); si no entran dos, va uno por renglón
+  const sem = Number(/min-width:(\d+)px/.exec(cuerpo('graficoSemanas'))[1]);
+  const col = /\.dos\{[^}]*minmax\(min\(100%,(\d+)px\),1fr\)/.exec(src);
+  assert.ok(col && Number(col[1]) >= sem + 40, `la columna de la grilla de los gráficos (${col ? col[1] : 'fija'}) es más angosta que el gráfico (${sem} + 40)`);
 });

@@ -50,10 +50,12 @@ fan-out no ocurrió (partes del Arranque salteadas, orden secuencial), lanzar lo
    pantalla: el validador lo dice y no exige la fila de prueba de pantalla.
    Si `story_format` es `null`, sacá del pedido la frase «La guía de historias está en …»: el validador la busca solo y
    lo dice si no la encuentra.
+   Si `notas_paquete` del punto 2 trae `tycon-story-validator`, ese texto va al final del pedido, tal cual: son las
+   notas de los paquetes activos para el validador, que en este paso no recibe el contexto de una vuelta.
    ```
    Agent(
      subagent_type: "tycon-story-validator",
-     prompt: "Validar la story en {story_path} contra el repo {repo_path}. La guía de historias está en {story_format}. Reglas de la organización: test_names={test_names}, screen_test={screen_test}. La historia tiene pantalla según el arnés: {sí|no} ({screen.why}). Retornar reporte estructurado con severity CRITICAL/WARNING/OK por cada item del checklist Mary+GOLD."
+     prompt: "Validar la story en {story_path} contra el repo {repo_path}. La guía de historias está en {story_format}. Reglas de la organización: test_names={test_names}, screen_test={screen_test}. La historia tiene pantalla según el arnés: {sí|no} ({screen.why}). Retornar reporte estructurado con severity CRITICAL/WARNING/OK por cada item del checklist Mary+GOLD.\n\n{notas_paquete['tycon-story-validator'], si viene}"
    )
    ```
 
@@ -74,6 +76,9 @@ fan-out no ocurrió (partes del Arranque salteadas, orden secuencial), lanzar lo
      prompt: "{lanzamiento.prompt}"
    )
    ```
+   - `notas_paquete` en la salida: `{ <revisor>: <texto> }`, las notas de los paquetes activos para el validador del
+     núcleo, que va al final de su pedido (punto 1). Las del revisor adversarial de la historia ya vienen dentro del
+     `prompt` de su lanzamiento.
    - `packs: []` en la salida = ningún paquete ACTIVO: corre sólo el validador, y eso se DICE en el anuncio
      con el motivo que trae `packs_nota` (que el equipo corra sin su paquete se ve en la primera corrida, no
      al mes). Son dos cosas distintas y la nota dice cuál: «ningún paquete instalado en <carpeta>», o «N

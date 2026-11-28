@@ -418,6 +418,7 @@ function parseArgs(argv) {
     else if (t === '--strict') a.strict = true;          // lint-config: exit 1 si hay hallazgos
     else if (t === '--specs-dir') a.specsDir = argv[++i];
     else if (t === '--findings') a.findings = argv[++i];
+    else if (t === '--agent') a.agent = argv[++i];                 // reviewer-notes: el revisor del núcleo
     else if (t === '--finding') a.finding = argv[++i];             // verify-finding / record-refutation: el hallazgo propuesto como falso (JSON)
     else if (t === '--result') a.resultado = argv[++i];            // record-refutation: lo que devolvió el verificador (JSON: refuted, command, output)
     else if (t === '--verifier') a.verificador = argv[++i];        // record-refutation: el id del lanzamiento del verificador (<agente>@<ts> del registro de spawns)

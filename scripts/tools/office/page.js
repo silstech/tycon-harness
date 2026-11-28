@@ -27,6 +27,14 @@ const EN={
   "El trabajo":"The work","Tablas":"Tables","Kanban":"Kanban","Buscar":"Search","Ir":"Go","Ver como tabla":"See as a table","Trabajo":"Work","Estado":"State",
   "Fin estimado":"Estimated end","Sesión":"Session","Carpeta":"Folder","Las sesiones trabajando en la oficina":"The sessions working in the office","Acercar":"Zoom in","Alejar":"Zoom out","Conversación":"Conversation",
   "Trabajando":"Working","Corriendo pruebas":"Running tests","Parada":"Stopped","Esperando entrar":"Waiting to merge","Esperando":"Waiting","Tu firma":"Your signature","Te pregunta":"Asks you",
+  // los pasos de una ejecución, como los nombra el pipeline (la misma traducción que `paso.<id>` del sitio), y la etiqueta
+  // del resumen de cada oficina
+  "Arranque":"Start","Validar la historia":"Validate the story","Armar el plan":"Draft the plan",
+  "Implementar":"Implement","Correr las pruebas":"Run the tests","Revisores":"Reviewers",
+  "Hallazgos":"Findings","Probar en vivo":"Try it live","Preparar el pull request":"Prepare the pull request","Cerrar la historia":"Close the story",
+  "coordina":"coordinates",
+  // lo que espera una sesión, como lo dicen las ejecuciones
+  "el plan espera tu firma":"the plan waits for your signature","Espera su turno para entrar":"Waits for its turn to merge",
   "Libre":"Free","Coordinando":"Coordinating","Inactiva":"Inactive","Terminado, falta cerrar":"Done, still to close","Pasada de la hora":"Past its time","En hora":"On time",
   "Agentes de IA":"AI agents","Pendientes":"Pending","tocá para ver el detalle":"tap to see the detail","TU FIRMA":"SIGN","PARADA":"STOPPED",
   "A medio camino":"Halfway","Camino corto":"Short path","Cargando las oficinas…":"Loading the offices…","Con la coordinadora":"With the coordinator","Con las sesiones":"With the sessions",
@@ -51,7 +59,7 @@ const EN={
   "Tenés demasiadas ventanas abiertas en las oficinas: cerrá otra pestaña y recargá esta.":"You have too many office windows open: close another tab and reload this one.",
   "Todavía no contestó: mirá su conversación más tarde.":"No answer yet: check its conversation later.","Todavía no hay oficinas para mostrarte: aparecen cuando una máquina confirmada a tu nombre se conecta.":"There are no offices to show you yet: they appear when a machine confirmed in your name connects.",
   "Tokens consumidos":"Tokens used","Tu sesión venció o tu cuenta ya no está en la lista: volvé a entrar al sitio.":"Your session expired or your account is no longer on the list: sign in to the site again.",
-  "Ver conversación":"See conversation","Vos · desde la oficina":"You · from the office","Vos":"You","cerrada, sin hora":"closed, no time","esperan o libres":"waiting or free","esperan tu firma":"waiting for your signature",
+  "Ver conversación":"See conversation","Vos · desde la oficina":"You · from the office","Vos":"You","cerrada, sin hora":"closed, no time","esperan o libres":"waiting or free","espera o está libre":"waiting or free","espera tu firma":"waiting for your signature","esperan tu firma":"waiting for your signature",
   "la oficina no contestó":"the office did not answer","más nueva que el sitio":"newer than the site","no medido":"not measured","posible clave copiada":"possible copied key","reconectando: el sitio se reinició":"reconnecting: the site restarted",
   "sin dato":"no data","sin hora":"no time","una conversación sin su forma":"a conversation without its shape","Última acción":"Last action","Escribí un número, como T-41 o 41.":"Type a number, such as T-41 or 41.",
   "Esta máquina no tiene coordinadora designada: no hay con quién cruzar los mensajes.":"This machine has no designated coordinator: there is no one to cross the messages with.",
@@ -177,6 +185,8 @@ const SITE=(()=>{try{const u=new URL(RAIZ.dataset.site||"");return u.protocol===
 setData(DATA);
 // el fin lo calcula office.js una vez por sesión: la etiqueta, la tarjeta, el detalle, el panel y la tabla dicen lo mismo
 const finTxt=a=>a.fin||null;
+// el pie de «Las sesiones» explica «Prometido» y el color de la diferencia: sólo sale si alguna sesión muestra uno
+const conPrometido=lista=>(lista||[]).some(a=>!!(a&&(a.estimadaIso||(finTxt(a)&&finTxt(a).dif))));
 // los pendientes: cinco columnas siempre, del estado real y del tablero de la coordinadora. Todo va como texto, nunca como HTML
 // cómo va una tarjeta de «En curso», de lo que ya dice su hora: lo calcula la oficina, con su margen de 15 minutos. Sin hora, nada
 function estadoDeHora(i){const h=i.hora||"";if(i.espera||/^espera\b|parada/.test(h))return ["Esperando","#d19a00"];if(/tarde|se pasó|estaba para/.test(h))return ["Pasada de la hora","#e5534b"];if(/en hora|antes$/.test(h))return ["En hora","#2fa866"];return null}
@@ -328,7 +338,7 @@ function renderTablas(){const sec=document.getElementById("tablas"),ts=DATA.tabl
       tr.addEventListener("click",()=>{if(temasAbiertos.has(id))temasAbiertos.delete(id);else temasAbiertos.add(id);pintar()});pintar();
       bd.appendChild(tr);bd.appendChild(det);if(foco===id)b.focus();});
     tb.appendChild(bd);const w=el("div","table");w.appendChild(tb);d.appendChild(w);pie();sec.appendChild(d);})}
-function renderCrew(){const crew=document.getElementById("crew");pintarTarjetas(crew,agents,abrirSesion);renderCerradas(cerradasJunto(crew),DATA.cerradas||[])}
+function renderCrew(){const crew=document.getElementById("crew");document.getElementById("foot").hidden=!conPrometido(agents);pintarTarjetas(crew,agents,abrirSesion);renderCerradas(cerradasJunto(crew),DATA.cerradas||[])}
 // «Cerradas», al final de «Las sesiones»: las de Claude cuyo proceso ya no existe. «Quitar» borra su archivo de estado y
 // está sólo en la oficina viva de la máquina: en el sitio la foto no trae el id
 function cerradasJunto(crew){let g=crew.nextElementSibling;if(!g||!g.classList.contains("cerradas-grupo")){g=el("div","cerradas-grupo");crew.after(g)}return g}
@@ -340,7 +350,7 @@ function pintarTarjetas(c,list,alTocar){c.replaceChildren();
   if(!list.length){c.appendChild(el("p","empty","No hay sesiones abiertas en esta máquina."));return}
   list.forEach((a,i)=>{const s=AST[a.estado]||[a.estado||"","#999"];const k=el("div","card");
     const h=el("h3");const d=el("span","dot");d.style.background=SHIRT[i%SHIRT.length];h.appendChild(d);h.appendChild(document.createTextNode(a.nombre||""));k.appendChild(h);
-    const st=el("span","st",s[0]);st.style.color=s[1];st.style.borderColor=s[1];const chips=el("div","chips");chips.appendChild(st);if(a.comoTrabaja&&a.comoTrabaja!==s[0])chips.appendChild(etiquetaComo(a.comoTrabaja,a.tarea));k.appendChild(chips);k.style.setProperty("--c",s[1]);
+    const st=el("span","st",s[0]);const chips=el("div","chips");chips.appendChild(st);if(a.comoTrabaja&&a.comoTrabaja!==s[0])chips.appendChild(etiquetaComo(a.comoTrabaja,a.tarea));k.appendChild(chips);k.style.setProperty("--c",s[1]);
     pintarFicha(a,k,false);if(alTocar){k.classList.add("abre");k.tabIndex=0;k.setAttribute("role","button");k.onclick=e=>{if(!e.target.closest("button,summary,a"))alTocar(a,k)};k.onkeydown=e=>{if(e.target===k&&(e.key==="Enter"||e.key===" ")){e.preventDefault();alTocar(a,k)}};}c.appendChild(k);})}
 // lo que se dice de una sesión, de un solo lugar: la tarjeta y el panel pintan esta lista y sólo cambia su estilo
 // el número de una tarea del tablero; una fila escrita a mano sin numerar dice «sin número»
@@ -866,7 +876,8 @@ T.cerrarPanel=cerrarPanel;PANELES.add(cerrarPanel);
 {let abajo=null;document.addEventListener("pointerdown",e=>{abajo=!panel.hidden&&ventana().hidden&&!panel.contains(e.target)&&!e.target.closest(".tag,.ventana")?{x:e.clientX,y:e.clientY}:null},true);
   document.addEventListener("pointerup",e=>{const a=abajo;abajo=null;if(!a||panel.contains(e.target)||Math.hypot(e.clientX-a.x,e.clientY-a.y)>6)return;cerrarPanel()},true);}
 const BOT='<svg class="bot" viewBox="0 0 24 24" fill="none" stroke="#c9b6ff" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="8" width="16" height="11" rx="4"/><path d="M12 8V4.5"/><circle cx="12" cy="3.5" r="1.2"/><circle cx="9" cy="13" r="1.3" fill="#c9b6ff"/><circle cx="15" cy="13" r="1.3" fill="#c9b6ff"/><path d="M2 12.5v3M22 12.5v3"/></svg>';
-const FX={firma:"!",pregunta:"?",espera:"⌛",esperando:"⌛",coordina:"→",prueba:"✓",libre:"z",parada:"‖"};
+// el ícono sobre la cabeza; el de quien corre pruebas es una vuelta (sigue trabajando), no una tilde, que se lee «terminó»
+const FX={firma:"!",pregunta:"?",espera:"⌛",esperando:"⌛",coordina:"→",prueba:"↻",libre:"z",parada:"‖"};
 function nuevoTag(d){const e=document.createElement("button");e.type="button";e.className="tag";e.innerHTML=BOT+'<div class="tx"><b></b><span class="como"></span><span class="st"><span class="dot"></span><span class="es"></span></span><span class="more"><span class="fin"></span><span class="bar"><i></i></span></span></div><span class="fx"></span>';e.onclick=()=>abrir(d.agent.nombre);labelsEl.appendChild(e);d.el=e}
 function pintarTag(d){const a=d.agent,m=manoDe(a),s0=T.AST[a.estado]||[a.estado||"","#999"],
   // con la mano levantada por otra cosa que su pantalla, la etiqueta dice a quién espera, con el color de su aro
@@ -1053,6 +1064,11 @@ const TOPE_DE_SALAS=8,ESPERA_MIN_MS=2000,ESPERA_MAX_MS=60000;
 const SIN_NOVEDAD_MS=60000,REVISAR_CONEXION_MS=5000,AVISO_SIN_NOVEDAD="Hace más de un minuto que no llega nada del sitio: lo que ves puede estar atrasado. Vuelvo a conectar.";
 function conexionMuerta(ultimoMs,ahoraMs){return ahoraMs-ultimoMs>=SIN_NOVEDAD_MS}
 // la coordinadora que espera una firma sigue coordinando: la foto la marca por cómo trabaja
+// el nombre de una oficina es el de su máquina, para la persona y para quien mantiene (quien mantiene ve además de quién es)
+function nombreDeOficina(o){return (o&&o.id)||""}
+// el texto de cada contador, con el verbo que concuerda con el número
+const CONTADORES={sesiones:["sesión","sesiones"],trabajando:["trabajando","trabajando"],firma:["espera tu firma","esperan tu firma"],libres:["espera o está libre","esperan o libres"]};
+function textoDeContador(n,clave){const c=CONTADORES[clave];return c?c[n===1?0:1]:""}
 // sin conexión, lo que se ve es de antes del corte: nadie se cuenta disponible (null: no se sabe)
 function resumenDeOficina(foto,{sinConexion=false}={}){const a=(foto&&foto.agents)||[],n=l=>a.filter(x=>l.includes(x.estado)).length,c=a.find(x=>x.estado==="coordina"||x.comoTrabaja==="Coordinando");
   return {sesiones:a.length,trabajando:n(["trabajando","prueba"]),firma:n(["firma","pregunta"]),esperanOLibres:sinConexion?null:n(["espera","esperando","parada","libre","inactiva"]),coordina:c?c.nombre:null}}
@@ -1098,7 +1114,7 @@ function arrancarOficinas(){
   // lo que repinta desde afuera de la conexión: si falla, se dice en la página, no sólo en la consola
   const seguro=f=>{try{f()}catch(e){console.error(e);decir("No pude dibujar la última novedad; muestro la anterior.")}};
   // cortada antes del primer mensaje y sin reintento: no hay nada cargando, y el aviso dice por qué
-  function pintarVacio(){vacio.hidden=oficinas.size>0||(!llego&&cortada);document.querySelector(".interruptor").hidden=!oficinas.size;$("foot").hidden=!oficinas.size;vacio.textContent=llego?"Todavía no hay oficinas para mostrarte: aparecen cuando una máquina confirmada a tu nombre se conecta.":"Cargando las oficinas…"}
+  function pintarVacio(){vacio.hidden=oficinas.size>0||(!llego&&cortada);document.querySelector(".interruptor").hidden=!oficinas.size;$("foot").hidden=!oficinas.size||![...oficinas.values()].some(o=>conPrometido(o.foto&&o.foto.agents));vacio.textContent=llego?"Todavía no hay oficinas para mostrarte: aparecen cuando una máquina confirmada a tu nombre se conecta.":"Cargando las oficinas…"}
   function ubicar(){const W=wrap.clientWidth,ancho=W>=900,G=18;
     // en el orden del sitio, el mismo con que se eligen las salas: no en el de llegada, que cambia con lo que la página vio antes
     const orden=[...new Set([...oficinas.keys(),...fichas.keys()])].filter(id=>fichas.has(id)),cards=orden.map(id=>fichas.get(id).card);
@@ -1124,10 +1140,11 @@ function arrancarOficinas(){
     f={card,h,stats,stage,sinSala,cover,bloque,titulo,crew,T:null};fichas.set(o.id,f);return f;}
   // el reloj corre antes del resumen: una sesión que pasó a inactiva se cuenta igual que la dice su tarjeta
   function pintarOficina(o){const lista=(o.foto&&o.foto.agents)||[];relojTick(lista,Date.now(),o.foto&&o.foto.meta);
-    const f=fichaDe(o),r=resumenDeOficina(o.foto,{sinConexion:!!(o.reconectando||o.sinConexionDesde)}),quien=o.person||o.id;
-    f.h.replaceChildren(document.createTextNode(quien));if(o.person)f.h.append(el("small",null,o.id));
-    const chip=(n,t,c)=>{const s=el("span","stat"+(c&&n?" "+c:""));s.append(el("b",null,String(n)),document.createTextNode(t));return s};
-    f.stats.replaceChildren(chip(r.sesiones,r.sesiones===1?"sesión":"sesiones"),chip(r.trabajando,"trabajando"),chip(r.firma,"esperan tu firma","firma"),...(r.esperanOLibres===null?[]:[chip(r.esperanOLibres,"esperan o libres")]));
+    const f=fichaDe(o),r=resumenDeOficina(o.foto,{sinConexion:!!(o.reconectando||o.sinConexionDesde)}),quien=nombreDeOficina(o);
+    f.h.replaceChildren(document.createTextNode(quien));if(o.person)f.h.append(el("small",null,o.person));
+    // el número y su texto, separados por un espacio (que no se pegue «1esperan»)
+    const chip=(n,clave,c)=>{const s=el("span","stat"+(c&&n?" "+c:""));s.append(el("b",null,String(n))," ",document.createTextNode(textoDeContador(n,clave)));return s};
+    f.stats.replaceChildren(chip(r.sesiones,"sesiones"),chip(r.trabajando,"trabajando"),chip(r.firma,"firma","firma"),...(r.esperanOLibres===null?[]:[chip(r.esperanOLibres,"libres")]));
     if(r.coordina){const s=el("span","stat");s.append("coordina ",el("b",null,r.coordina));f.stats.append(s)}
     // el sitio se reinició y esta máquina estaba: todavía no volvió a conectarse (no desapareció)
     if(o.reconectando)f.stats.append(el("span","stat apagada","reconectando: el sitio se reinició"));

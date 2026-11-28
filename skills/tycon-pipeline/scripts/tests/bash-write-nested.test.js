@@ -36,7 +36,7 @@ function correr({ home, dir }, command, env = {}, sesion = 's-anidados') {
   const log = path.join(home, '.claude', '.tycon-pipeline', 'hook-errors.log');
   fs.rmSync(log, { force: true });
   const base = {};
-  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('TYCON_')) base[k] = v;
+  for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
   const r = spawnSync(process.execPath, [GATE], {
     input: JSON.stringify({ tool_name: 'Bash', session_id: sesion, cwd: dir, tool_input: { command } }),
     env: { ...base, HOME: home, USERPROFILE: home, TYCON_NO_RUN_CHANGE: '1', ...env }, encoding: 'utf8', timeout: 15000,
@@ -988,4 +988,96 @@ test('T47 Cuenta_EntreComillas_NoEsUnDestino @S247d — el > de una cuenta compa
     assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
     assert.match(r.stderr, /story-[\d.]*\$\(\(/, `nombra la ruta con la cuenta: ${JSON.stringify(cmd)}`);
   }
+});
+
+// T48 CuentaSinPesos_NoEsUnDestino @A213
+// 🔴 Falla con: el `>` o el `<` de una cuenta sin `$`, `(( a > b ))` o `for ((i=0;i<3;i++))`, leído como una redirección
+// (frenaba con la palabra de después como destino), o con una escritura de verdad al lado de la cuenta, o adentro de un
+// subshell que sólo se parece a una cuenta, dejada de leer.
+test('T48 CuentaSinPesos_NoEsUnDestino @A213 — el > de (( … )) compara; lo que escribe al lado se sigue leyendo', () => {
+  const c = corral();
+  fs.mkdirSync(path.join(c.dir, '1'));
+  for (const cmd of [`(( x > ${H} ))`, `(( i++ ))`, `if (( x >= ${H} )); then echo si; fi`,
+    `for ((i=0;i<${H};i++)); do echo $i; done`, `(( x > ${H} )) && echo si`, `while (( x < ${H} )); do break; done`,
+    `echo a; (( x > ${H} ))`, `! (( x > ${H} ))`, `for ((i=5;i>${H};i--)); do echo $i; done`, `{ (( x > ${H} )); }`,
+    `until (( x > ${H} )); do break; done`, `time (( x > ${H} ))`, `(((x > ${H})))`,
+    `if true; then (( x > ${H} )); fi`, `! (( x > ${H} )) || echo no`, `if ! (( x > ${H} )); then :; fi`]) pasa(c, cmd);
+  for (const cmd of [`(( 1 )) > ${H}`, `echo $(( 1 > 0 )) > ${H}`, `( cat README.md > ${H} )`,
+    `((cat README.md > ${H}) )`, `( (cat README.md > ${H}) )`, `((cat README.md) > ${H})`, `(( x > 0 )); cp README.md ${H}`,
+    `((cat README.md > ${H}); (true))`, `for ((i=0;i<1;i++)); do cp README.md ${H}; done`,
+    `(( $(cp README.md ${H}) ))`, `(( \`cp README.md ${H}\` ))`, `(( a[$(cp README.md ${H})] ))`,
+    `(( x > 0 )) > ${H}`, `cat <((x > ${H}))`, `{ (( x )) > ${H}; }`, `echo $( (( 1 )) > ${H} )`, `echo hi >|((x > ${H}))`,
+    `\\((x > ${H}))`, `cat <( ((1)) ) > ${H}`, `(( "x" > ${H} ))`, `(( x > ${H} ; cp README.md ${H} ))`,
+    `if ((1)); then cat README.md > ${H}; fi`, `for ((cat README.md > ${H}; 0; )) ; do :; done; cp README.md ${H}`,
+    // en `sh` de Linux, `dash` o `ash`, `((…))` son dos subshells y lo de adentro corre: lo anidado no se lee como cuenta
+    // (revisión de Fable)
+    `dash -c '((cp README.md ${H}))'`, `dash -c '(( x > ${H} ))'`, `ash -c '((cp README.md ${H}))'`, `sh -c '(( x > ${H} ))'`,
+    `xargs dash -c '(( x > ${H} ))'`, `dash <<'EOF'\n(( x > ${H} ))\nEOF`,
+    // el `!`, el `{`, el `(` o la palabra de bloque de delante tienen que abrir un comando: detrás de `echo` son argumentos
+    `( ( noglob echo ! ((x > ${H}))`, `( ( noglob echo if ((x > ${H}))`, `( ( noglob echo (((x > ${H})))`,
+    `( ( noglob : for ((a; cp README.md ${H}; b))`, `echo { ((x > ${H}))`, `echo do ((x > ${H}))`,
+    // el `((` pegado a `$(` es la cuenta `$(((…)))` de la ruta destino, no un comando (revisión de Fable de la mezcla)
+    `echo x > $(((2/2)))/../${H}`, `echo x >> $(((2/2)))/../${H}`, `echo x &> $(((2/2)))/../${H}`,
+  ]) frena(c, cmd);
+  // en PowerShell (y en lo que corre Monitor) `((x > f))` escribe: la cuenta se lee así sólo en la herramienta Bash
+  for (const herramienta of ['PowerShell', 'Monitor']) {
+    const base = {};
+    for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
+    const r = spawnSync(process.execPath, [GATE], {
+      input: JSON.stringify({ tool_name: herramienta, session_id: 's-anidados', cwd: c.dir, tool_input: { command: `(( x > ${H} ))` } }),
+      env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
+    });
+    assert.strictEqual(r.status, 2, `frena en ${herramienta}\n${r.stderr}`);
+  }
+});
+
+// T49 CuentaSinPesos_DesdeLaCarpetaDeEstado @A227
+// 🔴 Falla con: parado en la carpeta de estado, el número de `(( n > 1 ))` leído como un archivo por la segunda lectura
+// de destinos (la que expande variables), que no sabía de las cuentas: frenaba un comando que escribe en /tmp.
+test('T49 CuentaSinPesos_DesdeLaCarpetaDeEstado @A227 — el > de (( … )) compara también parado en el estado', () => {
+  const c = corral();
+  const estado = path.join(c.home, '.claude', '.tycon-pipeline');
+  fs.mkdirSync(estado, { recursive: true });
+  const enEstado = { home: c.home, dir: estado };
+  const fuera = path.join(c.raiz, 'ok.txt');
+  for (const cmd of [`(( n > 1 )) && echo x > ${fuera}`, `if (( n >= 2 )); then echo x > ${fuera}; fi`,
+    `for ((i=0;i<3;i++)); do echo $i >> ${fuera}; done`]) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 0, `pasa: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+  // lo que escribe de verdad en la carpeta de estado sigue frenando
+  for (const cmd of ['(( n > 1 )) && echo x > nota.txt', '(( 1 )) > nota.txt']) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+});
+
+// T50 CuentaQueElShellNoLee_SeLeeComoComando @A227
+// 🔴 Falla con: una «cuenta» que el shell no lee como cuenta dejada en blanco: con un `]` sin abrir zsh corre lo de
+// adentro; un heredoc cuyo cuerpo no se sacó (delimitador `'E F'`) puede llevar `((…))` que `dash` corre; y en Codex
+// (que también llega como `Bash`, y en Windows corre PowerShell) `((…))` son dos paréntesis (revisión de Fable de la A227).
+test('T50 CuentaQueElShellNoLee_SeLeeComoComando @A227 — corchete suelto, heredoc sin sacar, Codex', () => {
+  const c = corral();
+  const estado = path.join(c.home, '.claude', '.tycon-pipeline');
+  fs.mkdirSync(estado, { recursive: true });
+  const enEstado = { home: c.home, dir: estado };
+  const fuera = path.join(c.raiz, 'ok.txt');
+  for (const cmd of [`((: ] && echo hi > nota.txt)); echo x > ${fuera}`, `((: a] && echo hi > nota.txt))`,
+    `dash << 'E F'\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`, `dash << "E F"\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`,
+    // bash une `<\⏎<` en `<<` (segunda vuelta de Fable)
+    `dash <\\\n< 'E F'\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`]) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+  // una cuenta con corchetes parejos sigue pasando
+  const r0 = correr(enEstado, `(( a[1] > 2 )) && echo x > ${fuera}`);
+  assert.strictEqual(r0.salida, 0, `pasa con corchetes parejos\n${r0.stderr}`);
+  // en Codex la cuenta no se lee así
+  const base = {};
+  for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
+  const r = spawnSync(process.execPath, [GATE], {
+    input: JSON.stringify({ tool_name: 'Bash', turn_id: 't-1', session_id: 's-anidados', cwd: estado, tool_input: { command: `((x > nota.txt)); echo x > ${fuera}` } }),
+    env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
+  });
+  assert.strictEqual(r.status, 2, `frena en Codex\n${r.stderr}`);
 });

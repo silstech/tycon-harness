@@ -3018,6 +3018,14 @@
       ]
     },
     {
+      "__nota": "A237: las notas de un paquete para los revisores del núcleo — la de un paquete activo llega al contexto de la vuelta (compartido y recortado), la de uno inactivo no, y una mal puesta es un paquete roto.",
+      "raiz": "agent-skills",
+      "ruta": "tycon-pipeline/scripts/tests/reviewer-notes.test.js",
+      "requiere": [
+        "agent-skills"
+      ]
+    },
+    {
       "raiz": "arnes",
       "ruta": "tests/reviewer-rules.test.sh",
       "requiere": [
@@ -3602,6 +3610,12 @@
       "__nota": "story 2.42: la tabla única de textos del sitio — cada clave en castellano y en inglés, y ninguna página armada en inglés trae texto en castellano.",
       "raiz": "arnes",
       "ruta": "tests/site-texts.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "Un texto del sitio con una cantidad dice el singular cuando es 1 (la forma «uno» de la tabla de textos). Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-plurals.test.js",
       "requiere": []
     },
     {
@@ -4499,9 +4513,33 @@
       "requiere": []
     },
     {
+      "__nota": "El número grande de una ficha del sitio dice qué cuenta y coincide con su lista (lo rehecho por mes: sin la deuda declarada). Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-cards-totals.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "Las tablas anchas del sitio avisan que se desplazan (sombras en el borde, sólo CSS) y la de productos deja fija su primera columna. Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-wide-tables.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "story 2.27: la pestaña Corridas del sitio de la organización — todo lo de la vista de corridas (cabecera, once fichas, gráficos, tabla de trece columnas, detalle con parches y mensaje rescatado, enlaces por id estable), filtrado por persona en el servidor: el dev ve sólo sus máquinas confirmadas, sin conteos globales; ajena, suelta e inexistente contestan el mismo 404; la prueba de fuga recorre todas las respuestas con marcadores sembrados en lo ajeno; la lista es lista blanca; el armado corre en un worker y sirve el anterior entero mientras rearma o si falla; sin disco, lo del hilo sale «no medido»; la página no trae nada en línea. Levanta el servidor del sitio con sesiones reales del emisor local y un espejo fabricado; sin red.",
       "raiz": "arnes",
       "ruta": "tests/site-runs.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "Todo el sitio en la hora de quien mira: el servidor manda cada momento como <time> con el instante en UTC (when.js) y site.js lo dice en la hora y el idioma del navegador, con un solo formato. Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-local-time.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "La cabecera de Ejecuciones en el sitio: el sello con la versión del sitio (o «desconocida») y el encabezado que nombra dónde están las seis preguntas. Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/runs-site-stamp.test.js",
       "requiere": []
     },
     {
@@ -4901,6 +4939,12 @@
       "__nota": "story 8.14, tanda A (T1-T6): el expansor y el partidor de scripts/lib/shell-parse.js — las llaves contra zsh y bash de verdad (un shell que falta sale NO MEDIDO), lo literal queda literal, los agrupamientos cortan por profundidad y las palabras quedan enteras, formas de zsh, $'…', variables y arreglos (lo desconocido vale *), y el presupuesto global calculado antes de generar.",
       "raiz": "arnes",
       "ruta": "tests/shell-parse-expand.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "la versión de bash se lee con el idioma fijo: con LANG=es_ES.UTF-8 (Ubuntu) bash escribe «versión» y las pruebas que se saltean fuera de la referencia no la encontraban (A225, issue #1855); y ninguna prueba la lee por su cuenta",
+      "raiz": "arnes",
+      "ruta": "tests/bash-version-language.test.js",
       "requiere": []
     },
     {
@@ -5856,6 +5900,12 @@
       "__nota": "story 4.11, tanda D: la sección de lo que encontró la noche en la página de Ejecuciones del sitio (scripts/site/tabs/findings.js) — una fila por ficha pendiente de las tres fuentes, sólo para quien mantiene (otro rol: 403 y sin la sección), confirmar abre un pedido al repo de operaciones con el archivo de decisión y no escribe main, el segundo clic no abre otro, en dependencias sólo «Arreglar», sin clon o con fichas ilegibles una frase, y el demo dice lo que pasaría sin red. Levanta el servidor del sitio con sesiones reales y un clon de operaciones fabricado; sin red.",
       "raiz": "arnes",
       "ruta": "tests/site-findings.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "Los títulos de las fichas de ejecuciones de Mantenimiento: como título dibujado arrancan con mayúscula (la noche escribe el nombre en minúscula), y el demo sólo usa causas que el catálogo de la noche conoce, con su nombre en inglés. Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-findings-titles.test.js",
       "requiere": []
     },
     {

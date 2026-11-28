@@ -958,12 +958,12 @@ const recortar = (s, max) => { const c = Array.from(s); return c.length > max ? 
  */
 function descripcionDe(marker, cz) {
   if (cz && cz.estado === 'leido') {
-    if (cz.titulo) return { texto: cz.titulo, fuente: 'el título de la story' };
+    if (cz.titulo) return { texto: cz.titulo, fuente: 'el título de la historia' };
     if (cz.commits && cz.commits.length) return { texto: cz.commits[0].s, fuente: 'su primer commit' };
   }
   const base = String((marker || {}).storyPath || '').split(/[\\/]/).pop().replace(/\.md$/i, '');
   const slug = base.replace(/^story[-_]?/i, '').replace(/^[0-9a-z]{1,4}([.-][0-9a-z]{1,3}){0,3}[-_]/i, '').replace(/[-_]+/g, ' ').trim();
-  return slug && /[a-záéíóúñ]{3}/i.test(slug) ? { texto: slug, fuente: 'el nombre del archivo de la story' } : null;
+  return slug && /[a-záéíóúñ]{3}/i.test(slug) ? { texto: slug, fuente: 'el nombre del archivo de la historia' } : null;
 }
 
 /**
@@ -1492,10 +1492,11 @@ function textosDe(c) {
 
 // ───────────────────────────── la página ─────────────────────────────
 
-// un color por fila de pasos (las diez de FILAS), en cuatro familias por etapa: preparar (0-3, azul), construir (4-6,
-// verde azulado), revisar (7-8, ámbar) y cerrar (9, violeta). Dos vecinos quedan a 15 o más de distancia de color (ΔE
+// un color por fila de pasos (las diez de FILAS), en cuatro familias por etapa: preparar (0-3, azul), construir (4 y 6,
+// verde azulado; Correr las pruebas, el 5, en terracota: con tres verdes azulados no se distinguía), revisar (7-8,
+// ámbar) y cerrar (9, violeta). Dos vecinos quedan a 15 o más de distancia de color (ΔE
 // de CIELAB): con una sola tonalidad, dos pasos seguidos no se distinguían. La copia del navegador es la misma.
-const RAMPA = ['#C9D6EA', '#9DB3D6', '#6E8DBF', '#3F64A0', '#9CD0CE', '#3D9799', '#14555C', '#F2C46D', '#B07A12', '#6B4C9A'];
+const RAMPA = ['#B7CDFA', '#3E9EEE', '#6884A9', '#0E5BA1', '#88CAC8', '#D98C5F', '#14555C', '#F2C46D', '#B07A12', '#6B4C9A'];
 // la coma decimal es del castellano: en inglés va el punto
 // (sólo en un idioma que la tabla tiene: uno desconocido sale entero en castellano, y con coma)
 const decimal = (x, idioma) => (TX && TX.IDIOMAS.includes(idioma) && idioma !== ES ? String(Math.round(x * 10) / 10) : num1(x));
@@ -1604,7 +1605,8 @@ function cabecera(M, opts = {}) {
   const conConsumo = C.filter((c) => c.consumo.estado === 'medido').length;
   const conControles = C.filter((c) => c.controles).length;
   const alFinal = C.filter((c) => c.llego_al_final).length;
-  const origen = sitio ? x('v.versionDelSitio') : `commit ${esc((() => { try { return execSync('git rev-parse --short HEAD', { cwd: RAIZ, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch (e) { return L(I, 'v.desconocido'); } })())}`;
+  // en el sitio, la versión que armó la página (la que le pasa la pestaña); sin ella, «desconocida», nunca el rótulo solo
+  const origen = sitio ? x(sitio.version ? 'v.versionDelSitio' : 'v.versionDelSitioDesconocida', { version: String(sitio.version || '') }) : `commit ${esc((() => { try { return execSync('git rev-parse --short HEAD', { cwd: RAIZ, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch (e) { return L(I, 'v.desconocido'); } })())}`;
   // cada parte del sello con su número: «1 duplicado», «1 no se pudo leer», aunque las otras sean varias
   const selloCorridas = Number.isFinite(M.archivos) ? [x(M.archivos === 1 ? 'v.selloLeidosUno' : 'v.selloLeidos', { n: N, a: M.archivos }), x(M.duplicados === 1 ? 'v.selloDuplicadoUno' : 'v.selloDuplicados', { d: M.duplicados }),
     x(M.ilegibles === 1 ? 'v.selloIlegibleUno' : 'v.selloIlegibles', { i: M.ilegibles })].join(' · ') : String(N);
@@ -1788,7 +1790,7 @@ section{margin-top:40px}h2{font-size:clamp(18px,2.3vw,24px);letter-spacing:-.018
 .claves span{font-size:13px;line-height:1.5;color:var(--ink-2);text-wrap:pretty}.claves span b{font-family:inherit;font-size:inherit;letter-spacing:0;text-transform:none;color:var(--ink)}
 .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:17px 19px 13px;margin-top:13px}
 .card h3{margin:0 0 4px;font-size:14.5px;font-weight:600}.card p{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
-.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(390px,1fr))}
+.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr))}
 .pasos{display:flex;flex-direction:column;gap:4px;margin-top:10px}
 .pfila{display:grid;grid-template-columns:210px 1fr 74px 96px;gap:9px;align-items:center;font-size:12px}
 .pfila .pn{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pfila .pn b{font-family:"IBM Plex Mono",monospace;color:var(--ink-3);margin-right:5px}
@@ -1799,7 +1801,7 @@ section{margin-top:40px}h2{font-size:clamp(18px,2.3vw,24px);letter-spacing:-.018
 .leyenda{display:flex;flex-wrap:wrap;gap:5px 14px;margin:12px 0 2px;font-size:11.5px;color:var(--ink-2);font-family:"IBM Plex Mono",monospace}
 .lg{display:inline-flex;align-items:center;gap:5px}.lg i{width:11px;height:11px;display:inline-block;border-radius:2px}
 .lg i.falta{background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 4px)}
-.tabla{margin-top:12px;overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+.tabla{margin-top:12px;overflow-x:auto;border:1px solid var(--line);background:var(--surface);container-type:inline-size}
 /* entre 641 y 1439 px la tabla se desplaza de costado: la sombra del borde derecho avisa que sigue */
 .tabla-caja{position:relative}.tabla-caja::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;pointer-events:none;background:linear-gradient(to right,transparent,color-mix(in srgb,var(--ink) 18%,transparent));opacity:0}.tabla-caja.sigue::after{opacity:1}
 table{border-collapse:collapse;width:100%;font-size:13px;min-width:940px}
@@ -1809,22 +1811,30 @@ th small{display:block;font-size:9px;letter-spacing:.02em;text-transform:none;co
 td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}tr:hover td{background:var(--surface-2)}
 td.fecha{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);white-space:nowrap}td.fecha small{display:block;color:var(--ink-3);font-size:10.5px}
 td.story{min-width:150px}td.story .desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px;line-height:1.3;color:var(--ink-2);margin:1px 0}td.story b{font-weight:600}td.story small{display:block;color:var(--ink-3);font-size:11px;overflow-wrap:anywhere;min-width:12ch}
-td.barra{width:9%;min-width:80px}
+/* con 110 px las trece columnas no entraban a 1400 px por 2 px (ANCHO-T1): 96 deja aire y sigue más ancha que los 80 de antes */
+td.barra{width:11%;min-width:96px}
 .bar{display:flex;height:13px;border-radius:2px;overflow:hidden;min-width:8px}.bar i{display:block;height:100%}.bar .entre{background:repeating-linear-gradient(90deg,var(--line-strong) 0 1px,transparent 1px 3px)}.bar .falta{background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 4px)}
 .nobar{font-size:11px;color:var(--ink-3);font-style:italic}
 td.ar small{display:block;font-size:9.5px;font-style:italic}td.dur,td.ag,td.vu,td.tk,td.ar{font-family:"IBM Plex Mono",monospace;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-td.pasos-n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;white-space:nowrap}.ok9{color:var(--good)}.parcial{color:var(--warn)}
+td.pasos-n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;white-space:nowrap}/* el color de texto de cada estado (en el sitio, --good y --warn son colores de relleno: claros sobre blanco) */
+.ok9{color:var(--good-ink,var(--good))}.parcial{color:var(--warn-ink,var(--warn))}
 td.frenos{white-space:normal;min-width:150px}.f{display:inline-block;margin-bottom:2px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;border:1px solid var(--line-strong);color:var(--ink-3);padding:1px 5px;margin-right:3px;border-radius:2px}
+/* los controles, lo que se mira primero, quedan contra el borde derecho mientras la tabla se desplaza de costado */
+.tabla>table>thead>tr>th:last-child,.tabla>table>tbody>tr[data-i]>td.frenos{position:sticky;right:0;background:var(--surface);box-shadow:-6px 0 6px -6px color-mix(in srgb,var(--ink) 30%,transparent)}
+.tabla>table>thead>tr>th:last-child{background:var(--surface-2);z-index:3}.tabla>table>tbody>tr[data-i]:hover>td.frenos,.tabla>table>tbody>tr.abierta>td.frenos{background:var(--surface-2)}
 .f.f-error{color:var(--crit);border-color:var(--crit);background:var(--crit-soft)}
 .f.f-freno{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
 .f.f-sin{color:var(--ink-3);border-style:dashed}.f b{font-weight:600;white-space:nowrap}
 .nd{color:var(--ink-3);font-style:italic;font-size:11.5px}
 tr.abierta td{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}tbody tr[data-i]{cursor:pointer}
 .fila-det td{padding:0;background:var(--surface-2);position:relative}
-.det{position:sticky;left:0;width:min(1124px,calc(100vw - 60px));box-sizing:border-box;padding:16px 18px 18px;border-top:2px solid var(--accent);border-bottom:1px solid var(--line-strong)}
+/* el detalle mide lo que se ve de la caja de la tabla (no la ventana): no queda cortado a la derecha */
+.det{position:sticky;left:0;width:min(1124px,100cqw);box-sizing:border-box;padding:16px 18px 18px;border-top:2px solid var(--accent);border-bottom:1px solid var(--line-strong)}
 .det>*{max-width:100%}
 /* a 640 px o menos cada ejecución es una tarjeta: cada dato con su nombre de columna y Controles a la vista */
 @media (max-width:640px){.tabla{overflow-x:visible}.tabla>table{display:block;min-width:0}.tabla>table>thead{display:none}.tabla>table>tbody{display:block}
+.tabla>table>thead>tr>th:last-child,.tabla>table>tbody>tr[data-i]>td.frenos{position:static;box-shadow:none}
+
 .tabla>table>tbody>tr[data-i]{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:10px 12px;border-bottom:1px solid var(--line-strong)}
 .tabla>table>tbody>tr[data-i]>td{display:block;border:0;padding:0;min-width:0;width:auto;text-align:left;white-space:normal}
 .tabla>table>tbody>tr[data-i]>td[data-col]::before{content:attr(data-col);display:block;font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
@@ -1835,6 +1845,8 @@ tr.abierta td{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)
 .det-chips{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .cerrar{font-family:"IBM Plex Mono",monospace;font-size:11px;background:none;border:1px solid var(--line-strong);color:var(--ink-2);padding:3px 8px;cursor:pointer}
 .tl{background:var(--surface);border:1px solid var(--line);padding:10px 8px 4px;overflow-x:auto}
+/* en una pantalla angosta los dos gráficos se deslizan de costado en vez de achicarse hasta que la letra no se lee */
+#gsem,#gpasos{overflow-x:auto}
 .tlleg{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:9px;font-size:11.5px;color:var(--ink-2)}
 .lgi{display:inline-flex;align-items:center;gap:6px}.lgi svg{flex:none}.lgi b{color:var(--ink)}
 .tlnota{font-size:12px;line-height:1.5;color:var(--ink-3);margin:9px 0 0;text-wrap:pretty}
@@ -1995,7 +2007,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     if (antes) partes.push(T('pasosSinMarca', { n: antes }));
     return partes.join('; ');
   };
-  var RAMPA = ['#C9D6EA','#9DB3D6','#6E8DBF','#3F64A0','#9CD0CE','#3D9799','#14555C','#F2C46D','#B07A12','#6B4C9A'];
+  var RAMPA = ['#B7CDFA','#3E9EEE','#6884A9','#0E5BA1','#88CAC8','#D98C5F','#14555C','#F2C46D','#B07A12','#6B4C9A'];
   // el rótulo de cada barra, oscuro o blanco según su color: se lee sobre los diez
   var TINTA = ['#0b0b0b','#0b0b0b','#0b0b0b','#fff','#0b0b0b','#0b0b0b','#fff','#0b0b0b','#0b0b0b','#fff'];
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
@@ -2003,7 +2015,9 @@ const CLIENTE_FUENTE = String.raw`(function () {
   var n1 = function (x) { return (Math.round(x * 10) / 10).toString().replace('.', T('sepDecimal')); };
   var miles = function (n) { return n == null ? '—' : n >= 1e6 ? n1(n / 1e6) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' k' : String(n); };
   var dt = function (min) { return min < 90 ? Math.round(min) + ' min' : n1(min / 60) + ' h'; };
-  var nombreCtl = function (k) { return CTL[k] ? CTL[k] + ' (' + k + ')' : k; };
+  // el nombre técnico entre paréntesis sólo cuando dice otra cosa: «tests (tests)» o «builds (build)» lo repetirían
+  var mismoNombre = function (a, b) { var n = function (s) { return String(s).toLowerCase().replace(/s$/, ''); }; return n(a) === n(b); };
+  var nombreCtl = function (k) { return CTL[k] ? (mismoNombre(CTL[k], k) ? CTL[k] : CTL[k] + ' (' + k + ')') : k; };
   // La etiqueta de un carril va anclada a la derecha en una columna de ~290 px: un nombre más largo se cortaba por la
   // izquierda. Se recorta con «…» y el nombre entero queda en su <title>.
   var ETIQUETA_MAX = 46;
@@ -2012,6 +2026,13 @@ const CLIENTE_FUENTE = String.raw`(function () {
   var ctlTec = function (k) { return CTL[k] ? k : ''; };
   var mediana = function (v) { if (!v.length) return null; var x = v.slice().sort(function (a, b) { return a - b; }); return x.length % 2 ? x[(x.length - 1) / 2] : (x[x.length / 2 - 1] + x[x.length / 2]) / 2; };
   var tokensDe = function (c) { return c.consumo.tokens.out + c.consumo.tokens.in + c.consumo.tokens.cache_new; };
+
+  // la marca del eje en horas y minutos: «1 h 15′», nunca «1,3 h» (un decimal redondeado confunde 1¼ con 1,3)
+  function marcaDelEje(t) {
+    if (t < 60) return t + '′';
+    var m = Math.round(t % 60);
+    return Math.floor(t / 60) + ' h' + (m ? ' ' + m + '′' : '');
+  }
 
   function ejeTicks(durMin) {
     var paso = durMin <= 30 ? 5 : durMin <= 120 ? 15 : durMin <= 360 ? 60 : durMin <= 1440 ? 180 : 720;
@@ -2050,10 +2071,10 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var y = 16, ys = {};
     lanes.forEach(function (l, i3) { if (l.ctl && (i3 === 0 || !lanes[i3 - 1].ctl)) y += 12; ys[l.k] = y; y += l.h + (l.ctl ? 3 : 12); });
     var H = y + 40;
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:760px;display:block" role="img" aria-label="' + T('ariaLinea') + '">';
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:1040px;display:block" role="img" aria-label="' + T('ariaLinea') + '">';
     ejeTicks(maxT).forEach(function (t) {
       s += '<line x1="' + X(t).toFixed(1) + '" y1="10" x2="' + X(t).toFixed(1) + '" y2="' + (H - 34) + '" stroke="var(--line)"></line>';
-      s += '<text x="' + X(t).toFixed(1) + '" y="' + (H - 18) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="var(--ink-3)">' + (t >= 60 ? n1(t / 60) + ' h' : t + '′') + '</text>';
+      s += '<text x="' + X(t).toFixed(1) + '" y="' + (H - 18) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="var(--ink-3)">' + marcaDelEje(t) + '</text>';
     });
     var lf = lanes.filter(function (l) { return l.ctl; });
     if (lf.length) {
@@ -2240,8 +2261,9 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var nombrePaso = function (key) { return key.split('+').map(function (p) { return PASOS[+p] || p; }).join(' + '); };
     return '<div class="mini"><h4>' + T('consumoTitulo', { n: miles(tokensDe(c)) }) + '</h4>'
       + '<p class="kv">' + T('consumoDetalle', { o: miles(k.tokens.out), n: miles(k.tokens.cache_new), l: miles(k.tokens.cache_read), r: k.respuestas == null ? '?' : k.respuestas }) + '</p>'
-      + '<p class="kv">' + T('modelos') + ': ' + Object.keys(k.por_modelo).map(function (m) { return esc(m) + ' ' + k.por_modelo[m].respuestas; }).join(' · ') + '</p>'
-      + '<div class="bars">' + ks.map(function (i) { return '<div class="b"><span>' + esc(i) + ' ' + esc(nombrePaso(i)) + '</span><i style="width:' + ((pp[i] / mx) * 100).toFixed(0) + '%;background:' + (RAMPA[+i.split('+')[0]] || RAMPA[RAMPA.length - 1]) + '"></i><b>' + miles(pp[i]) + '</b></div>'; }).join('') + '</div>'
+      // sin ningún modelo no hay renglón: un rótulo vacío se lee como un dato que falta sin motivo
+      + (k.por_modelo && Object.keys(k.por_modelo).length ? '<p class="kv">' + T('modelos') + ': ' + Object.keys(k.por_modelo).map(function (m) { return esc(m) + ' ' + k.por_modelo[m].respuestas; }).join(' · ') + '</p>' : '')
+      + '<div class="bars">' + ks.map(function (i) { return '<div class="b"><span>' + esc(nombrePaso(i)) + '</span><i style="width:' + ((pp[i] / mx) * 100).toFixed(0) + '%;background:' + (RAMPA[+i.split('+')[0]] || RAMPA[RAMPA.length - 1]) + '"></i><b>' + miles(pp[i]) + '</b></div>'; }).join('') + '</div>'
       + (k.fuera_de_ventana ? '<p class="kv">' + T('fueraDeTodoPaso', { n: miles(k.fuera_de_ventana) }) + '</p>' : '')
       + '</div>';
   }
@@ -2315,7 +2337,14 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var partes = [];
     if (t.estado === 'estimada') partes.push(' <b>' + T('durEstimadas') + '</b>' + T('durEstimadasTexto'));
     else if (t.estado === 'parcial') partes.push(' <b>' + T('durAlgunas') + '</b> (' + T(t.estimados.length === 1 ? 'pasoUno' : 'pasosVarios', { p: esc(t.estimados.join(', ')) }) + '): ' + T('durNoAnotaron'));
-    if (t.trabajo_ms !== null) partes.push(' ' + T('tTrabajo', { d: dt(t.trabajo_ms / 60000) }) + (t.espera_humana_ms !== null ? ' · ' + T('tEspera', { d: dt(t.espera_humana_ms / 60000) }) : ' · ' + T('tEsperaSinMedir')) + (t.entre_pasos_ms !== null ? ' · ' + T('tEntrePasos', { d: dt(t.entre_pasos_ms / 60000) }) : '') + '.');
+    // lo que «duró» y no cae en ninguna de las tres cuentas (lo que no se pudo partir, antes del primer paso anotado o
+    // después del último) se dice, para que sumen; con la espera sin medir no se sabe cuánto es, y no se inventa
+    var fuera = null;
+    if (t.trabajo_ms !== null && t.espera_humana_ms !== null && t.entre_pasos_ms !== null && c.dur_ms) {
+      var resto = c.dur_ms - t.trabajo_ms - t.espera_humana_ms - t.entre_pasos_ms;
+      if (resto >= 60000) fuera = resto;
+    }
+    if (t.trabajo_ms !== null) partes.push(' ' + T('tTrabajo', { d: dt(t.trabajo_ms / 60000) }) + (t.espera_humana_ms !== null ? ' · ' + T('tEspera', { d: dt(t.espera_humana_ms / 60000) }) : ' · ' + T('tEsperaSinMedir')) + (t.entre_pasos_ms !== null ? ' · ' + T('tEntrePasos', { d: dt(t.entre_pasos_ms / 60000) }) : '') + (fuera !== null ? ' · <span title="' + esc(T('tFueraNota')) + '">' + T('tFuera', { d: dt(fuera / 60000) }) + '</span>' : '') + '.');
     return partes.join('');
   }
 
@@ -2527,7 +2556,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     return '<div class="det">'
       + '<div class="det-head"><div><b>Story ' + esc(c.story || '—') + '</b> <span class="mono">' + esc(c.producto ? rotulo(c.producto) : T('productoSinRegistrar')) + '</span>'
       + (M.multi ? ' <span class="mono">· ' + (c.maquina ? esc(c.maquina) + (c.maquina_nota ? ' (' + esc(c.maquina_nota) + ')' : '') : T('maquinaSinDeclarar') + ' ' + esc(c.maquina_motivo || '')) + '</span>' : '')
-      + (c.descripcion ? '<div class="det-desc">' + esc(c.descripcion.texto) + ' <span class="nd">— ' + esc(c.descripcion.fuente) + '</span></div>' : '<div class="det-desc nd">' + T('sinDescripcion') + '</div>')
+      + (c.descripcion ? '<div class="det-desc">' + esc(c.descripcion.texto) + ' <span class="nd">' + T('descSegun', { f: esc(c.descripcion.fuente) }) + '</span></div>' : '<div class="det-desc nd">' + T('sinDescripcion') + '</div>')
       + '<div class="mono sub">' + esc((c.inicio || '').slice(0, 16).replace('T', ' ')) + ' UTC · ' + (c.dur_ms ? dt(c.dur_ms / 60000) : T('sinDuracion')) + '</div></div>'
       + '<div class="det-chips">' + chips + '<button class="cerrar">' + T('cerrar') + ' ✕</button></div></div>'
       + '<div class="tl">' + tl + '</div><div class="qtok" hidden></div>'
@@ -2609,7 +2638,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var W = 720, H = 196, x0 = 40, x1 = 706, base = 148, top = 16, paso = (x1 - x0) / ks.length;
     var Y = function (v) { return base - (v / max) * (base - top); };
     var X = function (i) { return x0 + paso * i + paso / 2; };
-    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:520px;display:block" role="img" aria-label="' + T('ariaPasos') + '">';
+    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:600px;display:block" role="img" aria-label="' + T('ariaPasos') + '">';
     [0, max / 2, max].forEach(function (t) {
       s2 += '<line x1="' + x0 + '" y1="' + Y(t) + '" x2="' + x1 + '" y2="' + Y(t) + '" stroke="var(--line)"></line><text x="' + (x0 - 7) + '" y="' + (Y(t) + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11" fill="var(--ink-3)">' + t + '</text>';
     });
@@ -2749,7 +2778,8 @@ const CLIENTE_FUENTE = String.raw`(function () {
       ficha(T('fTrabajo'), tMed.length ? med(dt(mediana(tMed.map(function (c) { return c.tiempos.trabajo_ms; })) / 60000), T('nEqDeEjecuciones', { n: tMed.length, t: N }), { detalle: T('trabajoDetalle') + (M.sin_hilos ? ' (' + T('incluyeEsperas') + ' ' + esc(M.sin_hilos) + ')' : '') }) : gris(sinArranque + sinHilo)),
       ficha(T('fEspera'), eMed.length ? med(dt(mediana(eMed.map(function (c) { return c.tiempos.espera_humana_ms; })) / 60000), T('nEqDeEjecuciones', { n: eMed.length, t: N }), { detalle: T('esperaDefinicion') + pisoEspera }) : gris(sinArranque + pisoEspera)),
       ficha(T('fPasos'), pa.length ? med(String(Math.round(mediana(pa))), T('nEqDeEjecuciones', { n: pa.length, t: N }), { detalle: (N - pa.length ? '<b>' + (N - pa.length) + '</b> ' + T('pasosSinMedir') + ' ' : '') + T('tokensConsecuencia') + (LB ? ' ' + T('lineaBaseDelFicha', { f: esc(LB.fecha) }) + ' <b>' + LB.mediana + '</b>' + (LB.corridas ? ' (n=' + LB.corridas + ')' : '') + '.' : ' <b>' + sinLB + '</b>.') }) : gris(T('sinPasosFiltro'))),
-      ficha(T('fTokens'), tk.length ? med(miles(Math.round(mediana(tk))), T('nEqDeEjecuciones', { n: tk.length, t: N }), { detalle: N - tk.length === 0 ? '' : N - tk.length === 1 ? T('deOtra') + ' ' + T('sinConsumoDetalle') : T('deOtras') + ' <b>' + (N - tk.length) + '</b> ' + T('sinConsumoDetalle') }) : gris(T('sinConsumoFiltro')))
+      // la mediana es de la conversación principal: los revisores consumen aparte (a veces más del doble) y la ficha lo dice
+      ficha(T('fTokens'), tk.length ? med(miles(Math.round(mediana(tk))), T('nEqDeEjecuciones', { n: tk.length, t: N }), { detalle: T('tokensSinRevisores') + (N - tk.length === 0 ? '' : ' ' + (N - tk.length === 1 ? T('deOtra') + ' ' + T('sinConsumoDetalle') : T('deOtras') + ' <b>' + (N - tk.length) + '</b> ' + T('sinConsumoDetalle'))) }) : gris(T('sinConsumoFiltro')))
     ].join('');
   }
 
@@ -2777,15 +2807,15 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var max = Math.max.apply(null, [1].concat(ks.map(function (k) { return porSem[k] || 0; })));
     var W = 720, H = 190, x0 = 34, x1 = 706, base = 148, top = 16, paso = (x1 - x0) / ks.length;
     var Y = function (v) { return base - (v / max) * (base - top); };
-    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:520px;display:block" role="img" aria-label="' + T('ariaSemanas') + '">';
+    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:600px;display:block" role="img" aria-label="' + T('ariaSemanas') + '">';
     [0, Math.round(max / 2), max].forEach(function (t) {
-      s2 += '<line x1="' + x0 + '" y1="' + Y(t) + '" x2="' + x1 + '" y2="' + Y(t) + '" stroke="var(--line)"></line><text x="' + (x0 - 7) + '" y="' + (Y(t) + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10.5" fill="var(--ink-3)">' + t + '</text>';
+      s2 += '<line x1="' + x0 + '" y1="' + Y(t) + '" x2="' + x1 + '" y2="' + Y(t) + '" stroke="var(--line)"></line><text x="' + (x0 - 7) + '" y="' + (Y(t) + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11.5" fill="var(--ink-3)">' + t + '</text>';
     });
     ks.forEach(function (k, i) {
       var n = porSem[k] || 0, cx = x0 + paso * i + paso / 2, bw = Math.min(30, paso * 0.62);
       s2 += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + Y(n).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(1, base - Y(n)).toFixed(1) + '" fill="' + (n ? 'var(--accent)' : 'var(--line-strong)') + '" rx="2"><title>' + semanaVisible(k) + ': ' + T('nEjecuciones', { n: n }) + '</title></rect>'
-        + '<text x="' + cx.toFixed(1) + '" y="' + (Y(n) - 5).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10.5" fill="var(--ink)">' + n + '</text>'
-        + (ks.length <= 26 || i % 2 === 0 ? '<text x="' + cx.toFixed(1) + '" y="166" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="var(--ink-3)">' + semanaVisible(k).slice(5) + '</text>' : '');
+        + '<text x="' + cx.toFixed(1) + '" y="' + (Y(n) - 5).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11.5" fill="var(--ink)">' + n + '</text>'
+        + (ks.length <= 26 || i % 2 === 0 ? '<text x="' + cx.toFixed(1) + '" y="166" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="var(--ink-3)">' + semanaVisible(k).slice(5) + '</text>' : '');
     });
     return s2 + '<text x="' + x0 + '" y="182" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="var(--ink-3)">' + T('semanaIso') + ' · ' + ks[0].slice(0, 4) + ' → ' + ks[ks.length - 1].slice(0, 4) + '</text></svg>';
   }
@@ -2859,8 +2889,13 @@ const CLIENTE_FUENTE = String.raw`(function () {
   function rotularDesplegables(enFechas) {
     var nRepo = {}, nMaq = {};
     enFechas.forEach(function (c) { var k = claveRepo(c); nRepo[k] = (nRepo[k] || 0) + 1; if (elMaq) nMaq[maqDe(c)] = (nMaq[maqDe(c)] || 0) + 1; });
+    // dentro del grupo de un producto, el repo va con su nombre solo cuando la carpeta repite el del producto escrito de
+    // otra manera («Producto-X/FrontEnd» bajo «Producto X»): el mismo producto no se escribe de dos formas
+    var mismoNombre = function (a, b) { return String(a).toLowerCase().replace(/[\s_-]+/g, '') === String(b).toLowerCase().replace(/[\s_-]+/g, ''); };
     var opcion = function (k) {
-      var etiqueta = k === SIN_PRODUCTO ? k : k.indexOf('laboratorio/') === 0 ? rotulo(k.slice(12)) + ' (' + T('laboratorio') + ')' : rotulo(k);
+      var g = grupoRepo[k], barra = k.indexOf('/');
+      var etiqueta = k === SIN_PRODUCTO ? k : k.indexOf('laboratorio/') === 0 ? rotulo(k.slice(12)) + ' (' + T('laboratorio') + ')'
+        : g && g !== 'laboratorio' && barra > 0 && mismoNombre(k.slice(0, barra), g) ? k.slice(barra + 1) : rotulo(k);
       return '<option value="' + esc(k) + '">' + esc(etiqueta) + ' (' + (nRepo[k] || 0) + ')</option>';
     };
     var elegido = elRepo.value;

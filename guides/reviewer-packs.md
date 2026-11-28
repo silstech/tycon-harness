@@ -21,6 +21,15 @@ mi-paquete/
 Un paquete puede traer además `skills/`, `guides/`, `templates/` y `claude-md-blocks/`. El formato completo del
 manifiesto está en [agent-architecture.md](agent-architecture.md), sección «Paquetes de revisores».
 
+**Las notas para los revisores del núcleo.** Los revisores del núcleo sirven para cualquier stack. Si en el tuyo una
+de sus reglas se cumple de otra forma (tu framework no tiene `BeginScope` y un prefijo en el mensaje cumple; tu host
+pone un prefijo en las rutas), el paquete trae `reviewer-notes/<revisor>.md`, una nota por revisor del núcleo, con su
+nombre exacto. Con el paquete activo, la nota le llega a ese revisor en el contexto de cada vuelta. Explica cómo se ven
+sus reglas en tu stack; no suma reglas con un ID propio ni saca las suyas (una regla nueva va en un revisor tuyo). Hasta
+16 KB, sin frontmatter ni título: el pipeline le pone «Para `<revisor>` — paquete `<paquete>`». Dos revisores del
+núcleo no reciben notas, porque no corren con el pedido que arma el pipeline: el de la retrospectiva
+(`tycon-retrospective-capturer`) y el del alcance firmado (`tycon-signed-scope-audit`).
+
 **El revisor** es un `.md` con frontmatter (`name`, `tools`, `model`, `description`) y un catálogo de reglas. Cada regla
 tiene un ID con el prefijo del revisor (`FASTAPI-C1` es crítica, `FASTAPI-W1` es un aviso), y cada hallazgo sale como
 `- [FASTAPI-C1] archivo:línea …`. Copiá uno de los dos del ejemplo y cambiale el nombre, el prefijo y las reglas. Dos

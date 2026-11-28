@@ -650,6 +650,13 @@ test('T72 Mantenimiento_Analisis_RecomiendaYOrden — el análisis dice por qué
     const en = (await h.pedir('/mantenimiento', { cookie: `${lead}; sitio-idioma=en` })).texto;
     assert.match(cartaDe(en, `ejecuciones/${A.id}`), /\(the analysis is in Spanish\)/);
     assert.match(cartaDe(en, `ejecuciones/${A.id}`), /Recommends Fix:/);
+    // 🔴 el aviso va antes del análisis, no debajo: quien lee en inglés lo sabe antes de toparse con el castellano
+    // (recorrido del sitio del 27/11)
+    const cartaEn = cartaDe(en, `ejecuciones/${A.id}`);
+    assert.ok(cartaEn.indexOf('(the analysis is in Spanish)') < cartaEn.indexOf('Why:'), 'el aviso antes del primer renglón del análisis');
+    assert.match(cartaEn, /<p class="m-idioma">\(the analysis is in Spanish\)<\/p><p><b>Why:/);
+    assert.strictEqual((cartaEn.match(/the analysis is in Spanish/g) || []).length, 1, 'una sola vez');
+    assert.doesNotMatch(cartaDe(p.texto, `ejecuciones/${A.id}`), /m-idioma/, 'en castellano no hay aviso');
   });
 });
 
@@ -1861,6 +1868,20 @@ test('T11 2.83-QuePaso_SinNombreLoCuenta @story-2.83 @ac-14 — las ejecuciones 
     const en = (await lista(`${lead}; sitio-idioma=en`)).json;
     assert.match(fila(en, 'ejecuciones', EJ_MIXTA.id).que_paso, / Sessions: Carrizo-4 \(2 runs without a name\)\.$/);
   });
+});
+
+// A208 (recorrido del sitio): en el teléfono, la barra fija de Mantenimiento («0 elegidas · Enviar para aprobar · Seguir
+// las recomendaciones · Borrar elecciones») ocupaba dos renglones, unos 110 px de 844, y tapaba el título y la segunda
+// ficha. En un teléfono va en una sola fila, con los botones más chicos y desplazable de costado si no entra.
+// 🔴 Falla con: una barra que en el teléfono sigue pudiendo partirse en dos renglones.
+test('A208 Mantenimiento_BarraFija_UnaFilaEnElTelefono', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'site', 'static', 'site.css'), 'utf8');
+  const tel = [...css.matchAll(/@media \(max-width:640px\)\{([\s\S]*?)\n?\}\n/g)].map((m) => m[1]).join('\n');
+  const regla = /\.m-barra\{([^}]*)\}/.exec(tel);
+  assert.ok(regla, 'la barra tiene su regla para el teléfono');
+  assert.match(regla[1], /flex-wrap:nowrap/, 'una sola fila');
+  assert.match(regla[1], /overflow-x:auto/, 'si no entra, se desplaza de costado');
+  assert.match(tel, /\.m-barra \.btn\{[^}]*white-space:nowrap/, 'cada botón en un renglón');
 });
 
 // 🔴 Falla con (A116, A119; recorrido F21): «Arreglos en curso» remitía al historial de decisiones aunque la página no lo

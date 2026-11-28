@@ -37,7 +37,6 @@ const TEXTOS = {
   'vista.cargando': { es: 'cargando', en: 'loading' },
   'vista.cargandoMaquinas': { es: 'cargando las ejecuciones y lo que informan las máquinas: esta página se recarga sola hasta tenerlo', en: 'loading the runs and what the machines report: this page reloads by itself until it has it' },
   'vista.fuenteDelParen': { es: '(fuente del {fecha})', en: '(source from {fecha})' },
-  'vista.delParen': { es: '(del {fecha})', en: '(from {fecha})' },
   'vista.verLaLista': { es: 'ver cuáles (cada una lleva a donde se decide)', en: 'see which ones (each leads to where it is decided)' },
   'vista.verEnArnes': { es: 'ver en Arnés', en: 'see in Harness' },
   'vista.dondeSeDecide': { es: 'dónde se decide', en: 'where it is decided' },
@@ -235,9 +234,10 @@ const TEXTOS = {
   'inicio.suites_rojas_nuevas': { es: 'Suites rojas esta noche (nuevas)', en: 'Red suites tonight (new)' },
   'inicio.banco_rojos_nuevos': { es: 'Casos del banco rojos esta noche (nuevos)', en: 'Red bench cases tonight (new)' },
   'inicio.declarados_por_vencer': { es: 'Datos declarados que vencen en 7 días', en: 'Declared items that expire within 7 days' },
-  'inicio.maquinas_sin_confirmar': { es: 'Máquinas sin confirmar con ejecuciones', en: 'Unconfirmed machines with runs' },
+  'inicio.maquinas_sin_confirmar': { es: 'Máquinas por confirmar con ejecuciones', en: 'Machines to confirm, with runs' },
   'inicio.maquinasSinInforme': { es: 'no medido: lo que informan las máquinas no se pudo leer del depósito', en: 'not measured: what the machines report could not be read from the run storage' },
   'inicio.retrospectivas': { es: 'Retrospectivas pendientes', en: 'Pending retrospectives' },
+  'inicio.retrosComo': { es: 'Cada una se hace en la máquina de quien mergeó, con node "$HOME/.tycon/harness/scripts/metrics/retro-heartbeat.js" --repo CARPETA --merge SHA (la carpeta del repo y el merge de la lista).', en: 'Each one is done on the machine of the person who merged, with node "$HOME/.tycon/harness/scripts/metrics/retro-heartbeat.js" --repo FOLDER --merge SHA (the repo folder and the merge from the list).' },
   'inicio.retrospectivasMotivo': { es: 'no medido: sólo existen en la máquina de quien mergeó', en: 'not measured: they only exist on the machine of the person who merged' },
   'inicio.queDecidir': { es: 'Qué decidir hoy', en: 'What to decide today' },
   'inicio.cadaFicha': { es: 'cada ficha lleva a su lista o a donde se decide', en: 'each card leads to its list or to where it is decided' },
@@ -248,7 +248,6 @@ const TEXTOS = {
   'decidir.gravedad.low': { es: 'baja', en: 'low' },
   'decidir.unaNoche': { es: '1 noche', en: '1 night' },
   'decidir.noches': { es: '{n} noches', en: '{n} nights' },
-  'decidir.corto.en_su_tarea': { es: 'se sigue en su tarea', en: 'followed in its work item' },
   'decidir.nadie_lo_sigue': { es: 'pull request #{n} cerrado sin resolver: nadie lo sigue', en: 'pull request #{n} closed without a fix: nobody follows it' },
   'decidir.en_su_tarea': { es: 'ya decidida: se sigue en su tarea, en Mantenimiento', en: 'already decided: it is followed in its work item, under Maintenance' },
   'decidir.tarea_cerrada': { es: 'su tarea {tarea} ({proyecto}) se cerró y la vulnerabilidad sigue: la noche le comentó; se decide en esa tarea', en: 'its work item {tarea} ({proyecto}) was closed and the vulnerability is still there: the nightly run commented on it; it is decided in that work item' },
@@ -314,9 +313,10 @@ const TEXTOS = {
   'proyectos.est.sinRango': { es: 'sin rango', en: 'no range' },
   'proyectos.est.encima': { es: 'encima por {por}', en: 'above by {por}' },
   'proyectos.est.debajo': { es: 'debajo por {por}', en: 'below by {por}' },
-  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} missing' },
+  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} left', uno: { es: 'abierta: falta 1', en: 'open: 1 left' } },
   'proyectos.est.totalDelProducto': { es: 'Total del producto', en: 'Product total' },
   'proyectos.est.parcial': { es: '(parcial: falta alguna épica)', en: '(partial: an epic is missing)' },
+  'proyectos.est.parcialAbierta': { es: '(parcial: alguna épica sigue abierta)', en: '(partial: an epic is still open)' },
   'proyectos.est.porUnidad': { es: 'sin tasa a horas, por unidad: {sumas}', en: 'no hourly rate, per unit: {sumas}' },
   'proyectos.est.sinEstimaciones': { es: 'sin estimaciones', en: 'no estimates' },
   'proyectos.est.ilegibles': { es: '{n} líneas ilegibles en el registro', en: '{n} unreadable lines in the log' },
@@ -414,7 +414,9 @@ const TEXTOS = {
   'arnes.motivoUltima4': { es: 'la imagen de stable no trae la etiqueta de versión', en: 'the stable image has no version label' },
   'arnes.motivoUltima5': { es: 'el sitio no sabe de qué imagen es (.tycon-release.json sin image)', en: 'the site does not know which image it comes from (.tycon-release.json without image)' },
   'arnes.ultimaSinMirar': { es: 'todavía no se miró la última publicada', en: 'the latest published has not been checked yet' },
-  'arnes.ultimaMirada': { es: '{version}{del} · última publicada en stable (mirada {hora})', en: '{version}{del} · latest published in stable (checked {hora})' },
+  'arnes.ultimaMirada': { es: '{version}{armada} · la más nueva del canal estable{mirada}', en: '{version}{armada} · the newest in the stable channel{mirada}' },
+  'arnes.ultimaArmada': { es: ' · imagen armada el {fecha}', en: ' · image built on {fecha}' },
+  'arnes.ultimaMiradaA': { es: ' (mirada a las {hora})', en: ' (checked at {hora})' },
   'arnes.comoEsta': { es: 'Cómo está el arnés', en: 'How the harness is doing' },
   'arnes.lede': { es: 'Lo que midió la noche y la versión del sitio. Las fichas de la noche están repartidas entre Arnés, Proyectos y Ejecuciones.', en: 'What the night run measured and this site\'s version. The nightly cards are spread across Harness, Projects and Runs.' },
 
@@ -482,10 +484,10 @@ const TEXTOS = {
   'corridas.sinBuzon': { es: 'sin depósito configurado: no medido', en: 'no run storage set up: not measured' },
   'corridas.falla': { es: 'no se pudo armar la vista de ejecuciones', en: 'the runs view could not be built' },
   'corridas.fallaCodigo': { es: 'no se pudo armar la vista de ejecuciones (código {codigo})', en: 'the runs view could not be built (code {codigo})' },
-  'corridas.rearmado': { es: 'No se pudo rearmar la vista de ejecuciones desde {desde} UTC (código {codigo}).', en: 'The runs view could not be rebuilt since {desde} UTC (code {codigo}).' },
-  'corridas.rearmadoSeMuestra': { es: ' Se muestra la armada el {generado} UTC, entera.', en: ' The one built on {generado} UTC is shown, complete.' },
+  'corridas.rearmado': { es: 'No se pudo rearmar la vista de ejecuciones desde {desde} (código {codigo}).', en: 'The runs view could not be rebuilt since {desde} (code {codigo}).' },
+  'corridas.rearmadoSeMuestra': { es: ' Se muestra la armada el {generado}, entera.', en: ' The one built on {generado} is shown, complete.' },
   'corridas.fichasDeLaNoche': { es: 'Estas fichas son de la noche y no siguen el filtro: cuentan todas las ejecuciones que leyó el tablero de la noche, con la fecha de su fuente.', en: 'These cards are from last night and do not follow the filter: they count every run the nightly dashboard read, with the date of their source.' },
-  'corridas.guardada': { es: 'Se muestra la vista guardada el {generado} UTC; se actualiza sola cuando termine de bajar el depósito entero.', en: 'Showing the view saved on {generado} UTC; it updates itself once the run storage finishes downloading in full.' },
+  'corridas.guardada': { es: 'Se muestra la vista guardada el {generado}; se actualiza sola cuando termine de bajar el depósito entero.', en: 'Showing the view saved on {generado}; it updates itself once the run storage finishes downloading in full.' },
   'corridas.textosOcupado': { es: 'hay muchos cambios de ejecuciones bajándose ahora: probá de nuevo en un rato', en: 'many run changes are being downloaded right now: try again in a while' },
   'corridas.textosVuelven': { es: 'los cambios de esta ejecución vuelven cuando termine de armarse la vista', en: 'the changes of this run come back once the view finishes building' },
   'corridas.textosNoDisponibles': { es: 'los cambios de esta ejecución no están disponibles hasta el próximo armado de la vista', en: 'the changes of this run are not available until the view is built again' },
@@ -785,8 +787,8 @@ const TEXTOS = {
   'ficha.qa_guia.paraQue': { es: 'El puente entre las pruebas automáticas y una persona que prueba.', en: 'The bridge between automated tests and a person who tests.' },
   'ficha.gates_dur.titulo': { es: 'Cuánto tarda verificar: duración de la suite de pruebas', en: 'How long verifying takes: duration of the test suite' },
   'ficha.gates_dur.paraQue': { es: 'Una suite que tarda horas no se corre antes de commitear: se saltea.', en: 'A suite that takes hours is not run before committing: it gets skipped.' },
-  'ficha.bloqueos.titulo': { es: 'Veces que un control del pipeline bloqueó una acción', en: 'Times a pipeline control blocked an action' },
-  'ficha.bloqueos.paraQue': { es: 'Cuántas veces un control frenó de verdad algo del trabajo.', en: 'How many times a control actually stopped something.' },
+  'ficha.bloqueos.titulo': { es: 'Veces que el registro de controles anotó un bloqueo', en: 'Times the controls log recorded a block' },
+  'ficha.bloqueos.paraQue': { es: 'Cuántas veces un control frenó de verdad algo del trabajo, en todo el registro de controles de las máquinas (también los del commit): no es la columna Controles de Ejecuciones, que cuenta sólo los de cada ejecución.', en: 'How many times a control actually stopped something, across the machines\' whole controls log (including the commit ones): not the Controls column in Runs, which counts only each run\'s own.' },
   'ficha.frenos.titulo': { es: 'Los frenos previos a la herramienta: cuántas veces frenaron y cuántas los saltearon', en: 'Pre-tool brakes: how many times they stopped something and how many times they were skipped' },
   'ficha.frenos.paraQue': { es: 'Los dos números de la misma regla juntos: sin el primero, un freno que funcionó parece que no sirvió.', en: 'The two numbers of the same rule together: without the first, a brake that worked looks useless.' },
   'ficha.evidencia_cierre.titulo': { es: 'Los controles automáticos del cierre: decisiones sobre una evidencia que la rechazaron', en: 'Closing automatic controls: decisions that rejected a piece of evidence' },
@@ -840,6 +842,15 @@ const TEXTOS = {
   'fichas.unidad.segundos1': { es: 'segundo', en: 'second' },
   'fichas.masDeDias': { es: 'más de {d} días en su estado', en: 'more than {d} days in their state' },
   'fichas.masDeUnDia': { es: 'más de 1 día en su estado', en: 'more than 1 day in their state' },
+  // el desglose de las fichas que preguntan una comparación (cards.js, PARTES)
+  'fichas.parte.frenos.frenaron': { es: 'frenaron {n}', en: 'blocked {n}' },
+  'fichas.parte.frenos.saltearon': { es: 'los saltearon {n}', en: 'skipped {n}' },
+  'fichas.parte.frenos.avisaron': { es: 'avisaron {n}', en: 'warned {n}' },
+  'fichas.parte.carriles.pipeline': { es: 'por el pipeline {n}', en: 'through the pipeline {n}' },
+  'fichas.parte.carriles.adhoc': { es: 'atajo declarado {n}', en: 'declared shortcut {n}' },
+  'fichas.parte.carriles.ninguno': { es: 'ninguno {n}', en: 'none {n}' },
+  'fichas.parte.rework_por_carril.vuelve_menos': { es: 'vuelve menos en {n}', en: 'comes back less in {n}' },
+  'fichas.parte.rework_por_carril.no_vuelve_menos': { es: 'no vuelve menos en {n}', en: 'does not come back less in {n}' },
   // las causas del vocabulario cerrado de «por qué volvió»; una fuera de él no muestra su clave
   'fichas.causa.defecto-propio': { es: 'defecto propio', en: 'own defect' },
   'fichas.causa.cambio-de-requisito': { es: 'cambio de requisito', en: 'requirement change' },
@@ -848,6 +859,8 @@ const TEXTOS = {
   'fichas.causa.sin-declarar': { es: 'sin declarar', en: 'not declared' },
   'fichas.causa.otra': { es: 'fuera del vocabulario', en: 'outside the vocabulary' },
   // una fila de «lo rehecho al lado de lo entregado»: dos conteos del mismo mes, no un porcentaje
+  'fichas.cuenta.rehechas_sin_deuda': { es: 'rehechas sin contar la deuda declarada, en {meses} meses', en: 'reworked without the declared debt, over {meses} months' },
+  'fichas.cuenta.rehechas_sin_deuda1': { es: 'rehechas sin contar la deuda declarada, en 1 mes', en: 'reworked without the declared debt, over 1 month' },
   'fichas.mes.fila': { es: '{mes}: {entregadas} entregadas · rehechas: {rehechas}', en: '{mes}: {entregadas} delivered · reworked: {rehechas}' },
   'fichas.mes.filaEnCurso': { es: '{mes} (en curso): {entregadas} entregadas · rehechas: {rehechas}', en: '{mes} (in progress): {entregadas} delivered · reworked: {rehechas}' },
   'fichas.fuenteDelParen': { es: '(fuente del {fecha})', en: '(source from {fecha})' },
@@ -955,8 +968,8 @@ const TEXTOS = {
   'config.seCorrigeAMano': { es: '{motivo}: se corrige a mano', en: '{motivo}: fix it by hand' },
   'config.sinUmbralesDelArnes': { es: '{motivo}: sin los umbrales que conoce el arnés no se puede revisar ninguna fila', en: '{motivo}: without the thresholds the harness knows, no row can be reviewed' },
   'config.sinSourcesDeLaOrg': { es: 'tu organización no tiene su sources.json en el repo de operaciones: se muestran los umbrales del arnés, sin editar (crearlo copiaría también las fuentes)', en: "your organization has no sources.json of its own in the operations repo: the harness's thresholds are shown read-only (creating it would also copy the sources)" },
-  'config.marcaIlegible': { es: 'la marca .dashboard/applied-config.json del nocturno no se pudo leer: sin ella no se sabe si tu nocturno lee este archivo', en: 'the night run\'s .dashboard/applied-config.json mark could not be read: without it there is no way to know whether your night run reads this file' },
-  'config.nocturnoNoLee': { es: 'tu nocturno todavía no lee este archivo: se edita cuando una noche verde deje la marca .dashboard/applied-config.json', en: 'your night run does not read this file yet: it becomes editable once a green night run leaves the .dashboard/applied-config.json mark' },
+  'config.marcaIlegible': { es: 'no se sabe si la máquina que corre la noche lee este archivo: la marca que deja cada noche (.dashboard/applied-config.json, en el repo de operaciones) no se pudo leer. Mirá la última noche en Arnés; se vuelve a habilitar con la próxima que termine bien', en: 'there is no way to know whether the machine that runs the night reads this file: the mark each night leaves (.dashboard/applied-config.json, in the operations repo) could not be read. Check the last night in Harness; it becomes editable again with the next one that ends well' },
+  'config.nocturnoNoLee': { es: 'la máquina que corre la noche todavía no lee este archivo: tiene una versión del arnés de antes. Se habilita sola después de la primera noche que termine bien con una versión nueva; si sigue así mañana, actualizá el arnés en esa máquina', en: 'the machine that runs the night does not read this file yet: it has an older harness version. It becomes editable on its own after the first night that ends well with a newer version; if it is still like this tomorrow, update the harness on that machine' },
   'org.paridadSinLista': { es: "todavía no hay una lista de qué se compara entre los productos", en: "there is no list yet of what is compared between the products" },
   'config.paridadIlegible': { es: 'la lista de paridad no se pudo leer: no es JSON válido', en: 'the parity list could not be read: it is not valid JSON' },
   'org.noLeeDeclaradas': { es: 'esta versión del arnés todavía no sabe leer las diferencias declaradas', en: 'this version of the harness cannot read the declared differences yet' },
@@ -1099,7 +1112,7 @@ const TEXTOS = {
   'org.placeSinVersion': { es: 'no medido: su place.json no declara la versión del arnés', en: 'not measured: its place.json does not declare the harness version' },
   'org.sinNoticias': { es: 'sin noticias desde {dia}', en: 'not heard from since {dia}' },
   'org.alDia': { es: 'al día: igual o más nueva que la de este sitio ({version})', en: 'up to date: the same as or newer than this site\'s ({version})' },
-  'org.atrasada': { es: 'atrasada (la imagen puede estar atrasada: compara contra {version})', en: 'behind (the image itself may be outdated: compared against {version})' },
+  'org.atrasada': { es: 'atrasada respecto de la versión que conoce el sitio ({version}); si el sitio mismo no está al día, puede haber una más nueva', en: 'behind the version the site knows ({version}); if the site itself is not up to date, there may be a newer one' },
   'org.sinFormaDeVersion': { es: 'no medido: «{version}» no tiene forma de versión', en: 'not measured: "{version}" does not look like a version' },
   'org.paridadSinProductos': { es: 'sin productos ({motivo})', en: 'no products ({motivo})' },
   'org.paridadMedido': { es: 'medido', en: 'measured' },
@@ -1347,6 +1360,7 @@ const TEXTOS = {
   'pantalla.firmaSoloDuenoNoSeDelega': { es: "para delegarla, primero pasala a la ventana", en: "to delegate it, first move it to the window" },
   'pantalla.firmaNoDesdeOtraSesion': { es: "no se firma desde la pestaña de otra sesión: no se puede delegar", en: "it cannot be signed from another session's tab: it cannot be delegated" },
   'pantalla.firmaNoRutina': { es: "es de nivel {nivel}: no se delega, la firma una persona", en: "it is level {nivel}: it is not delegated, a person signs it" },
+  'pantalla.firmasRetiradas': { es: 'Retiradas: ya no apagan nada, no hace falta decidir quién las firma', en: 'Retired: they no longer switch anything off, no need to decide who signs them' },
   'pantalla.firmaComoGuion': { es: "se pide con su comando", en: "asked for with its command" },
   'pantalla.firmaComoFrase': { es: "se pide con la frase del freno", en: "asked for with the brake's phrase" },
   'pantalla.firmaDesconocida': { es: "«{valor}» no es una firma que el arnés conozca: quitala", en: "«{valor}» is not a signature the harness knows: remove it" },
@@ -1578,6 +1592,7 @@ const TEXTOS = {
   'pantalla.verLosRevisores': { es: "Ver los {total} revisores y el nivel de cada uno", en: "See the {total} reviewers and each one's level" },
   'pantalla.cambiarloA': { es: "Cambiarlo a", en: "Change it to" },
   'pantalla.revisorSinNombre': { es: "revisor propio de tu organización (sin nombre en castellano)", en: "your organization's own reviewer (no plain-language name)" },
+  'pantalla.revisorDelPaqueteSinNombre': { es: 'revisor del paquete (sin nombre en castellano)', en: 'reviewer from the pack (no plain-language name)' },
   'pantalla.revisorDelArnesSinNombre': { es: 'revisor del arnés (sin nombre en castellano)', en: 'harness reviewer (no plain-language name)' },
   'pantalla.revisorNombradoDosVeces': { es: 'el paquete lo nombra dos veces: se muestra una', en: 'the pack names it twice: shown once' },
   'pantalla.revisoresDeTuOrganizacion': { es: "Revisores propios de tu organización", en: "Your organization's own reviewers" },
@@ -1689,7 +1704,8 @@ const TEXTOS = {
   'pantalla.opcionNo': { es: 'No', en: 'No' },
   'pantalla.paseDelicadaCampo': { es: 'En una historia delicada (toca seguridad, datos, frenos o firmas)', en: 'On a delicate story (touches security, data, brakes or signatures)' },
   'pantalla.paseChicaHastaCampo': { es: 'Un cambio es chico hasta cuántos archivos de código', en: 'A change is small up to how many code files' },
-  'pantalla.paseChicaHastaDeFabrica': { es: 'De fábrica: 6', en: 'Built-in: 6' },
+  'pantalla.paseChicaHastaDeFabrica': { es: '6 (de fábrica)', en: '6 (default)' },
+  'pantalla.coberturaDeFabrica': { es: '75 (de fábrica)', en: '75 (default)' },
   'pantalla.paseChicaDeDiaCampo': { es: 'Un cambio chico de rutina, con el dueño presente', en: 'A small routine change, with the owner around' },
   'pantalla.paseChicaAusenteCampo': { es: 'Un cambio chico de rutina, con el dueño ausente', en: 'A small routine change, with the owner away' },
   'pantalla.paseGrandeCampo': { es: 'Un cambio grande de rutina', en: 'A large routine change' },
@@ -1899,6 +1915,7 @@ const TEXTOS = {
   'pantalla.oficinaAprobada': { es: 'Aprobada', en: 'Approved' },
   'pantalla.oficinaConectada': { es: 'Conectada', en: 'Connected' },
   'pantalla.oficinaNunca': { es: 'Nunca', en: 'Never' },
+  'pantalla.oficinasLasVen': { es: 'Pueden verlas', en: 'Who can see them' },
   'pantalla.quienVeLasOficinas': { es: 'Quién ve las oficinas. Quien no tiene rol en el sitio no ve ninguna.', en: 'Who sees the offices. Whoever has no role on the site sees none.' },
   'pantalla.oficinasMantiene': { es: 'Quien mantiene ve todas; cada dev, las suyas', en: 'Maintainers see all of them; each dev, their own' },
   'pantalla.oficinasTodos': { es: 'Todos los que entran al sitio ven todas', en: 'Everyone who enters the site sees all of them' },
@@ -1961,10 +1978,15 @@ const TEXTOS = {
   'pantalla.siEsMejorMasAlto': { es: 'Si es mejor más alto: verde desde el primer número, rojo hasta el segundo. Si es mejor más bajo, al revés.', en: 'If higher is better: green from the first number, red up to the second. If lower is better, the other way round.' },
   'pantalla.comparacionDeHoy': { es: 'Comparación del último día (UTC): ', en: 'Comparison of the last (UTC) day: ' },
   'pantalla.noMedida': { es: 'no medida', en: 'not measured' },
-  'pantalla.producto3': { es: ' producto', en: ' product' },
-  'pantalla.repo3': { es: ' repo', en: ' repo' },
   'pantalla.reposCoincidenConLosDemas': { es: ' repos coinciden con los demás, salvo las diferencias aceptadas de abajo.', en: ' repos match the others, except for the accepted differences below.' },
-  'pantalla.conAlgoParaMirar': { es: ' con algo para mirar', en: ' with something to review' },
+  'pantalla.repo3': { es: ' repo', en: ' repo' },
+  'pantalla.paridadUnaDif': { es: '1 diferencia, que se ve en {m} {unidad}', en: '1 difference, seen in {m} {unidad}' },
+  'pantalla.paridadNDif': { es: '{n} diferencias, que se ven en {m} {unidad}', en: '{n} differences, seen in {m} {unidad}' },
+  'pantalla.paridadProducto': { es: 'producto', en: 'product' },
+  'pantalla.paridadProductos': { es: 'productos', en: 'products' },
+  'pantalla.paridadRepo': { es: 'repo', en: 'repo' },
+  'pantalla.paridadRepos': { es: 'repos', en: 'repos' },
+  'pantalla.paridadQuien': { es: '{producto} (grupo: {grupos})', en: '{producto} (group: {grupos})' },
   'pantalla.losOtros': { es: '; los otros ', en: '; the other ' },
   'pantalla.los': { es: 'Los ', en: 'The ' },
   'pantalla.productosCoincidenConLosDemas': { es: ' productos coinciden con los demás, salvo las diferencias aceptadas de abajo.', en: ' products match the others, except for the accepted differences below.' },
@@ -2170,7 +2192,7 @@ const TEXTOS = {
   'pantalla.nivel.max': { es: 'máximo', en: 'max' },
   'pantalla.equivalenciaDelNivel': { es: 'Anthropic: {anthropic} · OpenAI: {openai} · Ollama: {ollama} · Cursor: {cursor}', en: 'Anthropic: {anthropic} · OpenAI: {openai} · Ollama: {ollama} · Cursor: {cursor}' },
   'pantalla.porProveedor': { es: 'Qué modelo es cada nivel, por proveedor', en: 'Which model each level is, by provider' },
-  'pantalla.porProveedorAyuda': { es: 'Cada máquina usa la tabla de su proveedor. Una celda vacía usa el valor por defecto; «inherit» o «el del dev» deja el modelo que eligió cada dev.', en: 'Each machine uses its provider’s table. An empty cell uses the default; «inherit» or «the dev’s» keeps the model each dev chose.' },
+  'pantalla.porProveedorAyuda': { es: 'Cada máquina usa la tabla de su proveedor. Una celda vacía usa el valor por defecto; «el del dev» (en el archivo, inherit) deja el modelo que eligió cada dev.', en: 'Each machine uses its provider’s table. An empty cell uses the default; «inherit» or «the dev’s» keeps the model each dev chose.' },
   'pantalla.proveedor.anthropic': { es: 'Anthropic', en: 'Anthropic' },
   'pantalla.proveedor.openai': { es: 'OpenAI', en: 'OpenAI' },
   'pantalla.proveedor.ollama': { es: 'Ollama', en: 'Ollama' },
@@ -2316,7 +2338,7 @@ const TEXTOS = {
   'pantalla.maquinasPorConfirmar': { es: 'Máquinas por confirmar', en: 'Machines to confirm' },
   'pantalla.todasANombreDeAlguien': { es: 'todas a nombre de alguien', en: 'all belong to someone' },
   'pantalla.seccionesConAlgoParaArreglar': { es: 'Secciones con algo para arreglar', en: 'Sections with something to fix' },
-  'pantalla.seccionesAlDia': { es: "Secciones sin cambios", en: "Sections with no changes" },
+  'pantalla.seccionesAlDia': { es: "Secciones al día", en: "Sections up to date" },
   'pantalla.de2': { es: ' de ', en: ' of ' },
   'pantalla.sinNadaPendiente': { es: "iguales a lo guardado", en: "same as what is saved" },
   'pantalla.maquinasConUnaVersionVieja': { es: 'Máquinas con una versión vieja o sin noticias', en: 'Machines with an old version or not heard from' },
@@ -2330,6 +2352,7 @@ const TEXTOS = {
   'pantalla.laListaDeProductosNo': { es: 'La lista de productos no se pudo leer: los de la revisión de dependencias no se muestran.', en: 'The product list could not be read: the ones from the dependency review are not shown.' },
   'pantalla.abrirLaListaDeLa': { es: 'Abrir la lista de la revisión de dependencias →', en: 'Open the dependency review list →' },
   'pantalla.queVersionDelArnesTiene': { es: 'Qué versión del arnés tiene cada máquina', en: 'Which harness version each machine has' },
+  'pantalla.laQueInformoCadaUnaPregunta': { es: 'La que informó cada una en su última subida diaria, con o sin ejecuciones. Al arrancar, cada máquina le pregunta a su dev si se actualiza.', en: 'As reported by each one in its latest daily upload, with or without runs. On startup, each machine asks its dev whether to update.' },
   'pantalla.laQueInformoCadaUna': { es: 'La que informó cada una en su última subida diaria, con o sin ejecuciones. Se actualizan solas al arrancar.', en: 'As reported by each one in its latest daily upload, with or without runs. They update automatically on startup.' },
   'pantalla.sinConfirmar': { es: 'sin confirmar', en: 'not confirmed' },
   'pantalla.maquina': { es: 'Máquina', en: 'Machine' },
@@ -2629,12 +2652,12 @@ const TEXTOS = {
   'control.@tcg:engram-pre-commit.sh': { es: 'Frena el commit hasta guardar y preparar la memoria persistente del repo.', en: 'Blocks the commit until the repo\'s persistent memory is saved and staged.' },
   'control.@tcg:cover-secrets.js': { es: 'Tapa los valores reales de los secretos de la máquina en lo que ve el asistente.', en: 'Covers the real values of the machine\'s secrets in what the assistant sees.' },
   'control.@tcg:failed-query-notice.js': { es: 'Avisa cuando una consulta falló pero su salida vacía podría leerse como «no hay nada».', en: 'Warns when a failed query\'s empty output could be misread as «nothing there».' },
-  'control.@tcg:deprecated-session-notice.js': { es: 'Al abrir la sesión, le dice al asistente qué código del repo está deprecado y avisa si la lista quedó vieja.', en: 'When the session opens, tells the assistant which code in the repo is deprecated and warns if the list went stale.' },
+  'control.@tcg:deprecated-session-notice.js': { es: 'Al abrir la sesión, le dice al asistente qué código del repo está marcado como obsoleto (no se usa más) y avisa si la lista quedó vieja.', en: 'When the session opens, tells the assistant which code in the repo is deprecated and warns if the list went stale.' },
   'control.@tcg:harness-bootstrap-heal.sh': { es: 'Repara la línea de arranque del arnés cuando quedó incompleta y no se actualiza sola.', en: 'Repairs the harness startup line when it is incomplete and cannot update itself.' },
   'control.@tcg:lane-llm-notice.js': { es: 'Avisa cuántas veces el modelo abrió un permiso que el freno había cerrado.', en: 'Warns how many times the model opened a permission the safeguard had closed.' },
   'control.@tcg:large-read-meter.js': { es: 'Anota cuánto trajo el agente de un solo archivo y si bastaba una parte.', en: 'Records how much the agent pulled from a single file and whether a partial read would do.' },
   'control.@tcg:missing-path-notice.js': { es: 'Avisa cuando un comando de lectura nombró una ruta que no existe.', en: 'Warns when a read command named a path that does not exist.' },
-  'control.@tcg:deprecated-read-notice.js': { es: 'Cuando el asistente lee código que el repo declara deprecado, le recuerda el motivo y que no lo copie.', en: 'When the assistant reads code the repo declares deprecated, reminds it of the reason and not to copy it.' },
+  'control.@tcg:deprecated-read-notice.js': { es: 'Cuando el asistente lee código que el repo marca como obsoleto, le recuerda el motivo y que no lo copie.', en: 'When the assistant reads code the repo declares deprecated, reminds it of the reason and not to copy it.' },
   'control.@tcg:owner-email-notice.js': { es: 'Te avisa una vez qué correo de git manda tu máquina al equipo.', en: 'Tells you once which git email your machine reports to the team.' },
   'control.@tcg:unclosed-runs-notice.js': { es: 'Te avisa una vez por día si quedó alguna ejecución sin cerrar, y la sube marcada.', en: 'Tells you once a day if a run was left unclosed, and uploads it marked as such.' },
   'control.@tcg:pr-auto-complete-guard.js': { es: 'Frena crear a mano un pull request hacia main sin autocompletado ni los ajustes correctos.', en: 'Blocks hand-creating a pull request to main without auto-complete and the right settings.' },
@@ -2644,7 +2667,7 @@ const TEXTOS = {
   'control.@tcg:production-notice.js': { es: 'Avisa si el freno de producción falta, quedó viejo o fue alterado en máquinas autorizadas.', en: 'Warns if the production safeguard is missing, outdated or altered on authorized machines.' },
   'control.@tcg:hook-failures-notice.js': { es: 'Avisa al abrir la sesión qué controles del arnés fallaron en las últimas 24 horas, cuántas veces dejaron pasar y cuántas frenaron. No frena nada.', en: 'At session start, warns which harness controls failed in the last 24 hours, how many times they let things through and how many they blocked. It blocks nothing.' },
   'control.@tcg:guard-update-notice.js': { es: 'Avisa si el permiso de actualizar el freno sin contraseña no coincide con lo que eligió la organización, con el comando para corregirlo.', en: 'Warns if the permission to update the production safeguard without a password does not match what the organization chose, with the command to fix it.' },
-  'control.@tcg:guard-auto-update.js': { es: 'Pone al día el freno de producción sin contraseña cuando quedó viejo y la organización eligió que se actualice solo; no reintenta una versión que ya falló.', en: 'Updates the production safeguard without a password when it is old and the organization chose automatic updates; it does not retry a version that already failed.' },
+  'control.@tcg:guard-auto-update.js': { es: 'Pone al día el freno de producción sin contraseña cuando quedó viejo y la organización eligió que se actualice solo; no reintenta una versión que ya falló, y lo dice al arrancar.', en: 'Updates the production safeguard without a password when it is old and the organization chose automatic updates; it does not retry a version that already failed, and says so at startup.' },
   'control.@tcg:public-push-guard.js': { es: 'Frena subir al repositorio público algo con nombres, claves o datos que no pueden salir.', en: 'Blocks pushing to the public repository anything with names, keys or data that must not leave.' },
   'control.@tcg:push-phantom-ref-notice.js': { es: 'Avisa antes de subir cambios que nombran un archivo que no existe.', en: 'Warns, before a push, when the changes mention a file that does not exist.' },
   'control.@tcg:rebuild-before-verify.js': { es: 'Recuerda compilar el proyecto antes de pedirte revisar en el navegador cambios de pantalla.', en: 'Reminds the agent to rebuild the project before asking you to check screen changes in the browser.' },
@@ -2665,7 +2688,7 @@ const TEXTOS = {
   'control.@tcg:test-scope-guard-pre.sh': { es: 'Frena correr todas las pruebas de golpe, que congelan la máquina, en vez de las necesarias.', en: 'Blocks running the whole test suite at once, which freezes the machine, instead of just what is needed.' },
   'control.@tcg:dev-behind-main-notice.js': { es: 'En un repo de producto, avisa al abrir la sesión si a dev le faltan cambios de main o si tiene trabajo trabado hace una semana.', en: 'In a product repo, warns at session start when dev is missing changes from main or holds work stuck for a week.' },
   'control.@tcg:finished-open-notice.js': { es: 'Avisa al abrir la sesión lo que terminó y quedó abierto en la máquina: ejecuciones con todos sus pasos hechos y caminos cortos con su pull request abierto, con cómo se cierra cada uno. No cierra nada.', en: 'At session start, warns about work on the machine that finished and was left open: runs with every step done and shortcut lanes with an open pull request, with how to close each one. It closes nothing.' },
-  'control.@tcg:stuck-pr-notice.js': { es: 'En un repo del arnés, avisa al abrir la sesión qué pull requests con auto-completar llevan más de una hora en choque o sin entrar.', en: 'In a harness repo, warns at session start which auto-complete pull requests have been in conflict or not merging for over an hour.' },
+  'control.@tcg:stuck-pr-notice.js': { es: 'En un repo del arnés, avisa al abrir la sesión qué pull requests con auto-completar llevan más de una hora trabados por un conflicto con main o sin entrar.', en: 'In a harness repo, warns at session start which auto-complete pull requests have been in conflict or not merging for over an hour.' },
   'control.@tcg:extension-notices.js': { es: 'Al abrir la sesión, dice los avisos de los paquetes activos que aplican en ese repo, una vez por sesión.', en: 'At session start, shows the notices of the active packages that apply to that repo, once per session.' },
   'control.@tcg:extension-notices.js@PostToolUse': { es: 'Después del primer comando de una plataforma que la organización eligió, le da al asistente las reglas de esa plataforma, una vez por sesión.', en: 'After the first command of a platform the organization chose, gives the assistant that platform\'s rules, once per session.' },
   'control.@tcg:extension-notices.js@PostToolUseFailure': { es: 'Lo mismo cuando ese primer comando falló: la regla sirve justo ahí.', en: 'The same when that first command failed: the rule matters right there.' },
@@ -2677,7 +2700,7 @@ const TEXTOS = {
   'control.@tcg:background-question-guard.js': { es: 'Una sesión de fondo que abrió la coordinadora no te pregunta directo: le manda la pregunta a la coordinadora, que te la muestra. Y sólo la coordinadora le escribe: otra sesión le manda el mensaje a ella.', en: 'A background session the coordinator opened does not ask you directly: it sends the question to the coordinator, who shows it to you. And only the coordinator writes to it: another session sends its message to the coordinator.' },
   'control.@tcg:owner-approval-record.js': { es: 'Anota tu «aprobado» escrito o tu click en el cuadro de opciones, para que una firma pendiente lo use sin terminal, una sola vez.', en: 'Records your written approval or your click in the options box, so a pending signature can use it without the terminal, once.' },
   'control.@tcg:wait-notice.js': { es: 'Avisa por Telegram cuando una ejecución lleva rato esperando una respuesta tuya.', en: 'Sends a Telegram message when a run has been waiting on you for a while.' },
-  'control.@tcg:worktree-sweep.js': { es: 'Borra solas las carpetas de trabajo que ya se mergearon a main.', en: 'Automatically deletes working folders whose changes are already merged into main.' },
+  'control.@tcg:worktree-sweep.js': { es: 'Borra solas las carpetas de trabajo cuyos cambios ya entraron a main.', en: 'Automatically deletes working folders whose changes are already merged into main.' },
   'control.@tcg:temp-sweep.js': { es: 'Borra solas las carpetas temporales viejas que nadie usa, para que el arranque de la máquina no tarde en vaciarlas.', en: 'Automatically deletes stale temporary folders nothing is using, so machine startup does not spend minutes emptying them.' },
   'control.@tcg:disk-notice.js': { es: 'Con el disco casi lleno, dice al arrancar cuánto queda y qué lo llena, con el comando que limpia cada cosa; no corre ninguno.', en: 'When the disk is almost full, says at startup how much is left and what fills it, with the command that cleans each thing; it runs none of them.' },
   'control.@tcg:office-message-rule.js': { es: 'Le explica a cada sesión qué es un mensaje que le escribís desde tu oficina, y que nunca vale como firma.', en: 'Tells each session what a message you write to it from your office is, and that it never counts as a signature.' },
@@ -2694,7 +2717,7 @@ const TEXTOS = {
   'control.on-config-lint': { es: 'Avisa si un cambio a la configuración de revisores apaga controles o tiene errores.', en: 'Warns when a change to the reviewer settings switches off controls or contains errors.' },
   'control.on-controls-off': { es: 'Frena una edición que saca un control del arnés de la configuración de la herramienta.', en: 'Blocks an edit that removes a harness control from the tool settings.' },
   'control.on-coordination-write': { es: 'Frena que la coordinadora cambie archivos de los repos: le dice que se lo encargue a una sesión.', en: 'Blocks the coordinator from changing files in the repos: it tells it to hand the change to a session.' },
-  'control.on-deprecated-edit': { es: 'Avisa o frena si se edita código deprecado del repo sin una historia que lo pida.', en: 'Warns or blocks when deprecated code in the repo is edited without a story that asks for it.' },
+  'control.on-deprecated-edit': { es: 'Avisa o frena si se edita código que el repo marca como obsoleto sin una historia que lo pida.', en: 'Warns or blocks when deprecated code in the repo is edited without a story that asks for it.' },
   'control.on-dod-evidence-guard': { es: 'Frena que el agente escriba a mano las pruebas de que algo funciona.', en: 'Blocks the agent from hand-writing the evidence that something works.' },
   'control.on-edit': { es: 'Anota qué archivos toca cada historia y avisa si editás los de una sin su proceso.', en: 'Records which files each story touches and warns when you edit a story\'s files outside its process.' },
   'control.on-frontmatter-write': { es: 'Frena marcar una historia como terminada sin la evidencia de que funciona.', en: 'Blocks marking a story as done without evidence that it works.' },
@@ -2813,6 +2836,7 @@ const TEXTOS = {
   'horas.sinModeloN': { es: '{n} días sin dato de modelo', en: '{n} days without model data' },
   'horas.costoColumna': { es: 'Costo estimado', en: 'Estimated cost' },
   'horas.anterior': { es: 'semana anterior: {valor}', en: 'previous week: {valor}' },
+  'horas.diasDe7': { es: '{n} de 7 días medidos', en: '{n} of 7 days measured' },
   'horas.porPersona': { es: 'Por persona', en: 'By person' },
   'horas.persona': { es: 'Persona', en: 'Person' },
   'horas.promedioDia': { es: 'Horas por día medido', en: 'Hours per measured day' },
@@ -2926,7 +2950,15 @@ function problemasDeLaTabla(tabla) {
       if (typeof v[i] !== 'string' || !v[i].trim()) out.push(`${k}: falta el texto en «${i}»`);
       else if (v[i].includes('<')) out.push(`${k}: el texto en «${i}» trae HTML`);
     }
-    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i)) out.push(`${k}: idioma desconocido «${i}»`);
+    // la forma `uno` (el singular, cuando `n` es 1): los dos idiomas, sin HTML, los mismos valores, y sólo en un texto con {n}
+    if (Object.prototype.hasOwnProperty.call(v, 'uno')) {
+      const u = v.uno;
+      if (!u || typeof u !== 'object' || IDIOMAS.some((i) => typeof u[i] !== 'string' || !u[i].trim()) || Object.keys(u).some((i) => !IDIOMAS.includes(i))) out.push(`${k}: la forma «uno» no es { es, en }`);
+      else if (IDIOMAS.some((i) => u[i].includes('<'))) out.push(`${k}: la forma «uno» trae HTML`);
+      else if (valoresDe(u.es).join(',') !== valoresDe(u.en).join(',')) out.push(`${k}: la forma «uno» no tiene los mismos valores en los dos idiomas`);
+      if (typeof v.es === 'string' && !v.es.includes('{n}')) out.push(`${k}: la forma «uno» sólo va en un texto con {n}`);
+    }
+    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i) && i !== 'uno') out.push(`${k}: idioma desconocido «${i}»`);
     if (typeof v.es === 'string' && typeof v.en === 'string' && valoresDe(v.es).join(',') !== valoresDe(v.en).join(',')) out.push(`${k}: los valores con nombre no son los mismos en los dos idiomas (${valoresDe(v.es).join(', ') || 'ninguno'} / ${valoresDe(v.en).join(', ') || 'ninguno'})`);
   }
   return out;
@@ -2939,7 +2971,9 @@ function problemasDeLaTabla(tabla) {
 function t(idioma, clave, valores = {}) {
   const e = TEXTOS[clave];
   if (!e) throw new Error(`texts.js: no hay texto para la clave «${clave}»`);
-  const s = e[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
+  // una clave con forma `uno` la usa cuando la cantidad `n` es 1 («1 tarea», no «1 tareas»)
+  const forma = e.uno && Number(valores.n) === 1 && String(valores.n).trim() !== '' ? e.uno : e;
+  const s = forma[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
   return s.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (m, n) => (Object.prototype.hasOwnProperty.call(valores, n) ? String(valores[n]) : m));
 }
 
