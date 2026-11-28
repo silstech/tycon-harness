@@ -332,6 +332,24 @@
       "reason": "un ejemplo para quien lee, no historia del arnés: el título de una story de muestra y la etiqueta de una prueba, con un número inventado que muestra el formato (la guía enseña a escribir una story completa, con su número)"
     },
     {
+      "file": "story-format.en.md",
+      "form": "story-number",
+      "value": "Story 2.3",
+      "reason": "el mismo ejemplo que en story-format.md, en su traducción: el título de una story de muestra, con un número inventado que muestra el formato"
+    },
+    {
+      "file": "story-format.en.md",
+      "form": "story-number",
+      "value": "Story 7.1",
+      "reason": "el mismo ejemplo que en story-format.md, en su traducción: el título de una story de muestra, con un número inventado que muestra el formato"
+    },
+    {
+      "file": "story-format.en.md",
+      "form": "story-number",
+      "value": "story-4.5",
+      "reason": "el mismo ejemplo que en story-format.md, en su traducción: la etiqueta de una prueba, con un número inventado que muestra el formato"
+    },
+    {
       "file": "guides/integrations/instinct-mining.md",
       "form": "team-path",
       "value": "inbox/instincts",

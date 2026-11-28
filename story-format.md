@@ -1,5 +1,7 @@
 # Guia del Formato Mary+GOLD para Stories
 
+En inglés: [story-format.en.md](story-format.en.md).
+
 Esta guia define como escribir stories para que un agente LLM pueda implementarlas sin ambiguedad y sin inventar nada: lo que no se sabe se pregunta antes de escribirla, y queda en su intención.
 
 Debe usarse como referencia al escribir o validar stories en cualquier proyecto que siga este formato.

@@ -1,6 +1,6 @@
 {
-  "archivos": 68,
-  "lineas": 202,
+  "archivos": 70,
+  "lineas": 204,
   "porArchivo": {
     ".github/control-changes/081bc179e3cc1672ceb50f0d7d0a386002838f3fd8d8c04f6bf2a5bd1e378963.json": 1,
     ".github/control-changes/0a8d93523ebe27ac7ab2292034f2da51edffc6b0af09af1d9d60752d3b950454.json": 1,
@@ -13,9 +13,11 @@
     ".github/control-changes/b8bbec964bbb9c769ca23aaa9aa8f89993485057199386740ea7f28b5e40c213.json": 1,
     ".github/control-changes/bc5ab7f28eb612c52b3dc7a3dd05950dc4acf5fd2042ecdd7a3e1125ddaa51b3.json": 1,
     ".github/control-changes/d7d8e54ff9038b2955f8ae351ad5714b423d0109d9ee9c062490d4f10554f913.json": 1,
-    "guides/maintaining/pieces-in-detail.md": 4,
     "guides/maintaining/mirror-publishing.md": 3,
+    "guides/maintaining/pieces-in-detail.md": 4,
+    "guides/production-with-permission.en.md": 1,
     "guides/production-with-permission.md": 1,
+    "guides/safety-guard.en.md": 1,
     "guides/safety-guard.md": 1,
     "pipelines/operations/README.md": 3,
     "pipelines/operations/dependency-audit.yml": 4,

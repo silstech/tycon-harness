@@ -1,5 +1,7 @@
 # Producción con permiso
 
+En inglés: [production-with-permission.en.md](production-with-permission.en.md).
+
 **Cada consulta a una base de producción se aprueba de a una, y la contraseña no pasa por la
 conversación.** Esta guía es para el dev que la usa, y para el que quiera entender por qué está.
 

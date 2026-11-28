@@ -42,6 +42,7 @@ ECC (https://github.com/affaan-m/ECC):
 * guides/maintaining/pieces-in-detail.md — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
 * guides/maintaining/rules-distill.md — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
 * guides/safety-guard.md — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
+* guides/safety-guard.en.md — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
 * guides/maintaining/skill-scout.md — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
 * scripts/lib/harness-audit.js — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
 * scripts/hooks/safety-guard-pre.sh — based on ECC (https://github.com/affaan-m/ECC) · MIT · Copyright (c) 2026 Affaan Mustafa
