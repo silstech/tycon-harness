@@ -1,5 +1,7 @@
 # safety-guard — freno de mano del harness TYCON
 
+En inglés: [safety-guard.en.md](safety-guard.en.md).
+
 Hook `PreToolUse` matcher `Bash|PowerShell` (la herramienta PowerShell es por donde Claude Code corre los comandos en Windows; con `Bash` solo el freno no se disparaba ahí, 2026-10-04) que **bloquea comandos destructivos irreversibles** antes de ejecutarse. **Prendido por default** — opt-out vía `TYCON_SAFETY_GUARD=0`. Inspirado en [ECC safety-guard](https://github.com/affaan-m/ECC/blob/main/skills/safety-guard/SKILL.md) pero adaptado al stack TYCON (.NET, SQL Server, monorepos, multi-tenant, host Bizuit).
 
 **Por qué:**

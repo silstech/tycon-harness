@@ -35,6 +35,10 @@ const EXCEPCIONES = [
     motivo: 'dice qué no se aprueba con un click; que esas variables ya no apagan nada lo dice la sección de la emergencia' },
   { archivo: 'guides/safety-guard.md', fragmento: 'reescribió el comando con `TYCON_SAFETY_OFF=1` por su cuenta y commiteó',
     motivo: 'el caso que explica por qué el freno tiene una sola salida, contado en pasado' },
+  { archivo: 'guides/safety-guard.en.md', fragmento: '`TYCON_SAFETY_OFF`, `TYCON_PROD_LINT`, the emergency and skipping the adversarial pass do not accept it',
+    motivo: 'la misma frase que en castellano: dice qué no se aprueba con un click; lo demás lo dice la sección de la emergencia' },
+  { archivo: 'guides/safety-guard.en.md', fragmento: 'rewrote the command with `TYCON_SAFETY_OFF=1` on its own and committed',
+    motivo: 'el mismo caso que en castellano, contado en pasado' },
   { archivo: 'guides/owner-signatures.md', fragmento: '| `escape-phrases` | `escape:TYCON_SAFETY_OFF`, `escape:TYCON_PROD_LINT`',
     motivo: 'la tabla generada de los grupos lista ids: el grupo los sigue trayendo para que un perfil viejo se lea igual' },
 ];
