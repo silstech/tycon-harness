@@ -311,6 +311,9 @@ function validarManifiesto(json, { archivo, agentsDir, nucleo = [], banderas = [
       err(agente, 'está en «base» y en «condicional» del mismo paquete: va en uno solo (una sola superficie y profundidad por revisor del paso de revisores)');
     }
   }
+  // las notas del paquete para los revisores del núcleo (lib/reviewer-notes.js): una mal puesta es un paquete roto
+  const propiosDelPaquete = Array.isArray(json.reviewers) ? json.reviewers.filter(esObjeto).map((r) => r.agent) : [];
+  errores.push(...require('./reviewer-notes.js').validarNotas(path.dirname(archivo), { nucleo, propios: propiosDelPaquete }));
   return errores;
 }
 
@@ -384,6 +387,8 @@ function cargarPaquetes({ packsDir, agentsDir, nucleo = [], banderas = [] } = {}
       senales: json.shortPathSignals == null ? [] : json.shortPathSignals,
       // los controles de la CI que corren en local: los valida ci-local-checks.js, y uno mal escrito frena el cierre
       controlesDeCi: json.ciLocalChecks == null ? [] : json.ciLocalChecks,
+      // las notas para los revisores del núcleo: [{ revisor, ruta }] (lib/reviewer-notes.js)
+      notas: require('./reviewer-notes.js').listarNotas(p.dir),
     });
   }
   if (errores.length) throw new PackError(errores);

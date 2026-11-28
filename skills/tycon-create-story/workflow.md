@@ -443,6 +443,10 @@ If it prints `manual` (or the key is missing), follow the workflow as written.
 
 <step n="6" goal="Update sprint status and finalize">
   <action>Validate the newly created story file {default_output_file} against `./checklist.md` and apply any required fixes before finalizing</action>
+  <action>Read the active packs' notes for the validator: `node <this skill's directory>/../tycon-pipeline/scripts/pipeline.js
+  reviewer-notes --agent tycon-story-validator --repo {project-root}`. If it prints something, append it verbatim at the
+  end of the validator's prompt: they are how its rules apply in this repo's stack. If it prints nothing, add nothing;
+  if it exits 2, say its line and go on without notes.</action>
   <action>Run the `tycon-story-validator` subagent on the new story (pre-implementation: no `phase`). If its report has
   `[VAL-W17]` (a criterion asks for something the code already does), show it to the user in plain words BEFORE
   reporting completion: each criterion with the `file:line` and what the code already does there, exactly as the report
@@ -465,7 +469,9 @@ If it prints `manual` (or the key is missing), follow the workflow as written.
     `model`. Prompt: «Revisá la historia {default_output_file} contra el repo {project-root}, antes de programarla. Una
     sola pasada, de sólo lectura. El validador ya corrió y emitió: <its VAL-* rule IDs, or "nada">. No repitas eso.
     Cada hallazgo con su regla SADV, el criterio o la sección, y su evidencia; sin evidencia no es hallazgo. Cerrá con
-    el renglón «Veredicto:».» Never relaunch it: not for its findings, not after fixing them.</action>
+    el renglón «Veredicto:».» At the end of that prompt, append verbatim what `pipeline.js reviewer-notes --agent
+    tycon-story-adversarial-reviewer --repo {project-root}` prints (nothing if it prints nothing). Never relaunch it:
+    not for its findings, not after fixing them.</action>
     <action>Fix in the story every finding that what the story or the repo already says can settle, without asking:
     one `## Change Log` line per finding (`Revisión adversarial previa (SADV-xx): <what changed>`). When the fix
     touches a criterion or a test, update the tests table and the counts together. A finding that duplicates exactly

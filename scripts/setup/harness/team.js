@@ -123,6 +123,10 @@ const LAYER_PATTERNS = Object.freeze([
   new RegExp(`^packs/${SEG}/claude-md-blocks/(?!(?:${LOADED_ALONE.map(anyCase).join('|')})(?:\\.[A-Za-z0-9_-]+)*\\.md$)${SEG_NO_DOT}\\.md$`),
   // los avisos de un paquete: su `notices.json` y los .md de `notices/`, un solo nivel. Los dice el gancho de arranque
   // (scripts/hooks/extension-notices.js) sólo en los repos donde aplican; con el mismo cuidado que los bloques
+  // las notas de un paquete para los revisores del núcleo: los .md de `packs/<p>/reviewer-notes/`, un solo nivel; el
+  // pipeline las suma al contexto del revisor mientras el paquete está activo (skills/tycon-pipeline/scripts/lib/reviewer-notes.js).
+  // Con el mismo cuidado que los bloques: ni un nombre que un asistente carga solo ni uno que empiece con punto
+  new RegExp(`^packs/${SEG}/reviewer-notes/(?!(?:${LOADED_ALONE.map(anyCase).join('|')})(?:\\.[A-Za-z0-9_-]+)*\\.md$)${SEG_NO_DOT}\\.md$`),
   new RegExp(`^packs/${SEG}/notices\\.json$`),
   new RegExp(`^packs/${SEG}/notices/(?!(?:${LOADED_ALONE.map(anyCase).join('|')})(?:\\.[A-Za-z0-9_-]+)*\\.md$)${SEG_NO_DOT}\\.md$`),
   // los casos del examen de un paquete, como DATOS: un nivel, sólo `.json`, sin punto adelante. Viajan con el

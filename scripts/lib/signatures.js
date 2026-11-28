@@ -472,6 +472,8 @@ const SENSITIVE = Object.freeze([
   // los que deciden qué cambiado después de la última vuelta de revisores no pide otra (el portón de «Preparar» y la vuelta
   // sin código que pasa el tope sola)
   'skills/tycon-pipeline/scripts/lib/reviewed-diff.js', 'skills/tycon-pipeline/scripts/lib/reloop-code.js',
+  // lo que decide qué le llega a cada revisor del núcleo de los paquetes activos (sus notas)
+  'skills/tycon-pipeline/scripts/lib/reviewer-notes.js',
   // los que consumen o exigen una firma por un camino armado (`require(path.join(...))`, que la clausura no ve)
   'skills/tycon-pipeline/scripts/dispatch.js', 'skills/tycon-pipeline/scripts/on-*.js',
   'skills/tycon-pipeline/scripts/lib/story-skill-gate*.js', 'skills/tycon-pipeline/scripts/e2e-setup.js',

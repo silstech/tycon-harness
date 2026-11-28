@@ -205,6 +205,7 @@ const CASOS_PIPELINE = [
   { id: 'check-count-carril-sin-carril', argv: ['check-count', '--adhoc'] },
   { id: 'deep-review-gate-carril-sin-carril', argv: ['deep-review-gate', '--adhoc'] },
   { id: 'siblings', argv: ['siblings', '--repo', '{REPO}'] },
+  { id: 'reviewer-notes', argv: ['reviewer-notes', '--agent', 'tycon-plugin-tests-coverage', '--repo', '{REPO}'] },
   { id: 'validators', argv: ['validators', '--story', '{STORY}', '--repo', '{REPO}'] },
   { id: 'smart-reloop-sin-args', argv: ['smart-reloop'] },
   { id: 'smart-reloop-sin-foto', marcador: true, argv: ['smart-reloop', '--iter', '2', '--repo', '{REPO}', '--story', '{STORY}', '--files', 'src/a.js'] },
