@@ -54,14 +54,16 @@ function idiomaFijo(base, ...extras) {
  * Copia de `base` con configuración de git por el entorno (`GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_<n>` /
  * `GIT_CONFIG_VALUE_<n>`, desde git 2.31), en vez de `-c clave=valor` en los argumentos: un secreto en los argumentos lo ve
  * cualquier proceso de la máquina (`ps`, `/proc/<pid>/cmdline`) mientras git corre; en el entorno, sólo el dueño del
- * proceso. Tampoco queda en ningún `.git/config`. La configuración por entorno que traía `base` se reemplaza.
+ * proceso. Tampoco queda en ningún `.git/config`. Los pares se suman a los que ya traía `base` (un proxy o un certificado
+ * del servidor), después de ellos: para una clave de un solo valor, git se queda con el último.
  */
 function conConfigDeGit(base, pares) {
   const env = Object.assign({}, base || process.env);
-  for (const k of Object.keys(env)) if (/^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+)$/.test(k)) delete env[k];
+  const previos = Number.parseInt(env.GIT_CONFIG_COUNT, 10);
+  const desde = Number.isInteger(previos) && previos > 0 ? previos : 0;
   const lista = Object.entries(pares || {});
-  lista.forEach(([k, v], i) => { env[`GIT_CONFIG_KEY_${i}`] = k; env[`GIT_CONFIG_VALUE_${i}`] = String(v); });
-  if (lista.length) env.GIT_CONFIG_COUNT = String(lista.length);
+  lista.forEach(([k, v], i) => { env[`GIT_CONFIG_KEY_${desde + i}`] = k; env[`GIT_CONFIG_VALUE_${desde + i}`] = String(v); });
+  if (lista.length) env.GIT_CONFIG_COUNT = String(desde + lista.length);
   return env;
 }
 

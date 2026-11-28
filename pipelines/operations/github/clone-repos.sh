@@ -20,7 +20,7 @@
 #       del arnés que declara team-repos.json (`harness_copies` de GitHub, salvo la de `maintainers` si está en la lista:
 #       la regla es la del lector, scripts/lib/team-repos.js). Clona LIVIANO (`--filter=blob:none`, sólo
 #       Markdown, `.advisors/` y `.tycon/`) en `<destino>/<dueño>__<repo>` (lo parten en `__` las métricas). El clon
-#       liviano baja contenido después: el token queda en la config de esos clones, en un trabajo que sólo lee Markdown.
+#       liviano no guarda el token: mientras lo tiene, baja el historial de los Markdown que leen las métricas.
 #
 # Necesita ORG_TOKEN, por env del paso: el token de la GitHub App (recomendado) o el secreto HARNESS_ORG_TOKEN (un usuario
 # de máquina). Habla con GitHub por TYCON_GH_CMD (por defecto gh; un `.js` corre con node) y clona desde GITHUB_SERVER_URL

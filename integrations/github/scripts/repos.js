@@ -110,9 +110,12 @@ function listar({ env, owners, kind, prefix = '', copias = new Set() }) {
 // ── el clon ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const gitRun = (args, opts = {}) => spawnSync('git', args, { encoding: 'utf8', windowsHide: true, ...opts });
-/** El entorno de un git con la cabecera por GIT_CONFIG_* (ni en los argumentos, que cualquier proceso ve, ni en el disco). */
+/**
+ * El entorno de un git con la cabecera por GIT_CONFIG_* (ni en los argumentos, que cualquier proceso ve, ni en el disco)
+ * y sin seguir redirecciones, para que la credencial no salga del servidor.
+ */
 const conCabecera = (env, header) => require(path.join(__dirname, '..', '..', '..', 'scripts', 'lib', 'clean-git-env.js'))
-  .conConfigDeGit(env, { 'http.extraheader': header });
+  .conConfigDeGit(env, { 'http.followRedirects': 'false', 'http.extraheader': header });
 
 /** La cabecera de la credencial para git: `AUTHORIZATION: basic <base64 de x-access-token:token>`. */
 function cabecera(token) {
@@ -212,11 +215,14 @@ function org(dest, header, env, teamRepos) {
     }
     // un repo VACÍO no tiene HEAD: no es un fallo, es un repo sin nada que medir
     if (gitRun(['-C', destino, 'rev-parse', '-q', '--verify', 'HEAD'], { env }).status !== 0) { fs.rmSync(destino, { recursive: true, force: true }); continue; }
-    // el clon liviano baja contenido después: el token queda en la config de esos clones, en un trabajo que sólo lee Markdown
-    gitRun(['-C', destino, 'config', 'http.extraheader', header], { env });
     gitRun(['-C', destino, 'sparse-checkout', 'init', '--no-cone'], { env });
     try { fs.writeFileSync(path.join(destino, '.git', 'info', 'sparse-checkout'), '**/*.md\n.advisors/**\n.tycon/**\n'); } catch { fallidos.push(`${it.full}(checkout)`); continue; }
-    if (gitRun(['-C', destino, 'checkout', '--quiet'], { env }).status !== 0) fallidos.push(`${it.full}(checkout)`);
+    if (gitRun(['-C', destino, 'checkout', '--quiet'], { env: conCabecera(env, header) }).status !== 0) { fallidos.push(`${it.full}(checkout)`); continue; }
+    // el clon liviano no guarda la cabecera: el historial que leen las métricas (las versiones viejas de cada Markdown)
+    // se baja ahora, mientras está la credencial, porque el paso de las métricas no la tiene
+    const { bajarHistorial } = require(path.join(__dirname, '..', '..', '..', 'scripts', 'lib', 'clone-history.js'));
+    const h = bajarHistorial((a) => gitRun(a, { env: conCabecera(env, header) }), destino, ['*.md']);
+    if (!h.ok) console.log(`::warning::${it.full}: ${h.detail}`);
   }
   const clonados = fs.readdirSync(dest, { withFileTypes: true }).filter((x) => x.isDirectory()).length;
   console.log(`repos vistos: ${total} · clonados: ${clonados}`);

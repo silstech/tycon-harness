@@ -28,10 +28,12 @@ const servers = [];
 test.after(() => { for (const s of servers) s.close(); for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
 const tmp = (p) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), p)); dirs.push(d); return d; };
 const write = (dir, files) => { for (const [f, c] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), c); } };
+const { sinGitDelPadre } = require(path.join(ROOT, 'scripts', 'lib', 'clean-git-env.js'));
+// sin las variables que git le pasa a sus ganchos: un `init --bare` que heredara GIT_DIR reiniciaría el repo de verdad
 const git = (cwd, args, env) => {
   const fecha = '2026-01-01T00:00:00Z';
   const r = spawnSync('git', ['-c', 'maintenance.auto=false', '-c', 'gc.auto=0', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8',
-    env: { ...process.env, GIT_AUTHOR_NAME: 'a', GIT_AUTHOR_EMAIL: 'a@a', GIT_COMMITTER_NAME: 'a', GIT_COMMITTER_EMAIL: 'a@a', GIT_AUTHOR_DATE: fecha, GIT_COMMITTER_DATE: fecha, ...env } });
+    env: { ...sinGitDelPadre(), GIT_AUTHOR_NAME: 'a', GIT_AUTHOR_EMAIL: 'a@a', GIT_COMMITTER_NAME: 'a', GIT_COMMITTER_EMAIL: 'a@a', GIT_AUTHOR_DATE: fecha, GIT_COMMITTER_DATE: fecha, ...env } });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
   return r.stdout;
 };
@@ -1032,6 +1034,36 @@ test('T36 Secreto_NiEnLosArgumentosDeGit @story-1.6 @ac-10', async () => {
     assert.match(log, /^KEY http\.extraheader$/m);
     assert.match(log, /^KEY http\.followRedirects$/m);
   }
+  // los dos modos de siempre de clone-repos.sh (sin fuentes): `org` y `declared`
+  const ghEnv = { ...m.env, PATH, ORG_TOKEN: GH_TOKEN, ORG_TOKEN_KIND: 'user', OWNERS: 'acme', TYCON_GH_CMD: FAKE_GH, FAKE_GH_STATE: gh.state, GITHUB_SERVER_URL: `file://${gh.server}` };
+  for (const [modo, input] of [['--org', undefined], ['--declared', 'Acme/web\tacme/web\n']]) {
+    espia.limpiar();
+    const dest = path.join(tmp('modo-'), 'repos');
+    const r = await run('bash', [CLONE_SH, modo, dest, ...(modo === '--org' ? ['--team-repos', m.teamRepos] : [])], { cwd: base, env: ghEnv, input });
+    assert.strictEqual(r.code, 0, r.all);
+    const log = espia.leer();
+    assert.match(log, /^ARGV clone/m, `${modo}: el espía vio el clon`);
+    assert.doesNotMatch(log.split('\n').filter((l) => l.startsWith('ARGV')).join('\n'), secretos, `${modo}: ningún argumento lleva la credencial`);
+    assert.match(log, /^KEY http\.extraheader$/m, modo);
+    assert.match(log, /^KEY http\.followRedirects$/m, modo);
+    const clon = modo === '--org' ? path.join(dest, 'acme__web') : path.join(dest, 'Acme', 'web');
+    assert.doesNotMatch(fs.readFileSync(path.join(clon, '.git', 'config'), 'utf8'), /extraheader|authorization/i, `${modo}: sin la cabecera en el disco`);
+  }
+});
+
+test('T40 Secreto_LaConfiguracionPreviaDeGitSigue @story-1.6 @ac-10', () => {
+  const { conConfigDeGit } = require(path.join(ROOT, 'scripts', 'lib', 'clean-git-env.js'));
+  // un runner que ya le pasa a git un proxy por el entorno: el par previo sigue llegando, y el nuevo se suma después
+  const previo = { ...sinGitDelPadre(), GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.proxy', GIT_CONFIG_VALUE_0: 'http://proxy.empresa:3128' };
+  const env = conConfigDeGit(previo, { 'http.followRedirects': 'false', 'http.extraheader': 'X-Prueba: 1' });
+  assert.strictEqual(env.GIT_CONFIG_COUNT, '3');
+  const leer = (k) => spawnSync('git', ['config', '--get', k], { env, encoding: 'utf8', cwd: tmp('cfg-') }).stdout.trim();
+  assert.strictEqual(leer('http.proxy'), 'http://proxy.empresa:3128');
+  assert.strictEqual(leer('http.extraheader'), 'X-Prueba: 1');
+  assert.strictEqual(leer('http.followRedirects'), 'false');
+  // sin configuración previa, empieza en 0
+  const solo = conConfigDeGit({ PATH: process.env.PATH }, { a: '1' });
+  assert.deepStrictEqual([solo.GIT_CONFIG_COUNT, solo.GIT_CONFIG_KEY_0, solo.GIT_CONFIG_VALUE_0], ['1', 'a', '1']);
 });
 
 test('T37 Gitlab_ClonCompletoEsLaRamaMain @story-1.6 @ac-6', async () => {
