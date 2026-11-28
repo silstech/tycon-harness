@@ -20,7 +20,8 @@ ok()  { echo "✅ $1"; }
 mal() { echo "❌ $1"; fallos=$((fallos+1)); }
 
 # C-1 · el defecto existe de verdad en el bash 3.2 (si esta máquina lo tiene)
-if [ -x /bin/bash ] && /bin/bash --version 2>/dev/null | grep "version 3\.2" >/dev/null; then
+# la versión con el idioma fijo: con LANG=es_ES.UTF-8 bash escribe «versión» y el grep no la encontraba
+if [ -x /bin/bash ] && env -u LANGUAGE -u LC_MESSAGES LC_ALL=C LANG=C /bin/bash --version 2>/dev/null | grep "version 3\.2" >/dev/null; then
   printf -v cmd 'echo "«$%s»"' X                      # el comando lleva la secuencia rota de verdad; este archivo, no
   # el defecto aparece con el idioma en UTF-8 (el de la terminal de cualquier dev); sin idioma o en C, bash 3.2 lee
   # byte a byte y la línea sale bien — una corrida de fondo sin LANG daría el rojo falso de abajo

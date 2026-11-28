@@ -650,6 +650,13 @@ test('T72 Mantenimiento_Analisis_RecomiendaYOrden — el análisis dice por qué
     const en = (await h.pedir('/mantenimiento', { cookie: `${lead}; sitio-idioma=en` })).texto;
     assert.match(cartaDe(en, `ejecuciones/${A.id}`), /\(the analysis is in Spanish\)/);
     assert.match(cartaDe(en, `ejecuciones/${A.id}`), /Recommends Fix:/);
+    // 🔴 el aviso va antes del análisis, no debajo: quien lee en inglés lo sabe antes de toparse con el castellano
+    // (recorrido del sitio del 27/11)
+    const cartaEn = cartaDe(en, `ejecuciones/${A.id}`);
+    assert.ok(cartaEn.indexOf('(the analysis is in Spanish)') < cartaEn.indexOf('Why:'), 'el aviso antes del primer renglón del análisis');
+    assert.match(cartaEn, /<p class="m-idioma">\(the analysis is in Spanish\)<\/p><p><b>Why:/);
+    assert.strictEqual((cartaEn.match(/the analysis is in Spanish/g) || []).length, 1, 'una sola vez');
+    assert.doesNotMatch(cartaDe(p.texto, `ejecuciones/${A.id}`), /m-idioma/, 'en castellano no hay aviso');
   });
 });
 

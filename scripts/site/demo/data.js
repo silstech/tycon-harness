@@ -539,12 +539,12 @@ function oficinasDeEjemplo(ahora = Date.now()) {
   });
   return [
     { id: 'mac-lead', person: LEAD, conectada: true, sinConexionDesde: null, marcas: [], foto: foto([
-      sesion('Coordinadora', 'coordina', { haciendo: 'Reparte los turnos de las pruebas pesadas' }),
+      sesion('Coordinadora', 'coordina', { haciendo: 'Coordina las sesiones de esta máquina' }),
       sesion('Atlas', 'prueba', { titulo: 'Aviso cuando un pedido sale de la cola', fin: fin(40), avance: 55, pasos: pasos(5) }),
       sesion('Boro', 'firma', { titulo: 'Los avisos de espera llegan a quien corresponde', espera: 'el plan espera tu firma', fin: fin(65), avance: 27, pasos: pasos(3) }),
       sesion('Cleo', 'trabajando', { titulo: 'La oficina se actualiza en tiempo real', fin: fin(90), avance: 73, pasos: pasos(8) }),
       sesion('Dina', 'libre', { haciendo: 'Sin trabajo' }),
-      sesion('Hugo', 'parada', { titulo: 'Revisa un error al iniciar sesión desde el celular', parada: 'sin novedades' }),
+      sesion('Hugo', 'parada', { titulo: 'Revisa un error al iniciar sesión desde el celular', parada: `parada desde las ${hhmm(ahora - 35 * 60000)}` }),
     ]) },
     // como en el sitio real, sólo las máquinas confirmadas tienen oficina (mac-bruno sigue «por confirmar» en
     // Configuración); la de Ana muestra cómo se ve una oficina sin conexión: su última foto, con la hora en que se cortó

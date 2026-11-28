@@ -1,5 +1,7 @@
 # Git Commit Conventions — Guía TYCON
 
+En inglés: [git-commit-conventions.en.md](git-commit-conventions.en.md).
+
 Guía única para commits, merges y push en todos los repos TYCON (FRESNO, Ebano, Totora, Pacara y el repo de formularios de la plataforma). Consolida las reglas que viven dispersas en los `CLAUDE.md` de cada repo.
 
 ---

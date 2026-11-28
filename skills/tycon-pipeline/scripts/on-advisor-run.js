@@ -676,7 +676,6 @@ function advisorDelEvento(event) {
 module.exports = { recordLaunch, curatedReading, phaseStart, frenoDelTope, advisorDelEvento, TOOLS };
 
 if (require.main === module) {
-  let r = null;
-  try { r = main(); } catch { /* fail-safe */ }
+  try { main(); } catch { /* fail-safe */ }
   process.exit(0);
 }

@@ -3605,6 +3605,12 @@
       "requiere": []
     },
     {
+      "__nota": "Un texto del sitio con una cantidad dice el singular cuando es 1 (la forma «uno» de la tabla de textos). Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-plurals.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "story 8.87: las palabras que lee una persona — «ejecución» y no «corrida» en los textos del sitio y de los programas, y «el agente» cuando el texto habla del agente en general; los nombres de la máquina siguen.",
       "raiz": "arnes",
       "ruta": "tests/human-words.test.js",
@@ -4913,6 +4919,12 @@
       "__nota": "story 8.14, tanda A (T1-T6): el expansor y el partidor de scripts/lib/shell-parse.js — las llaves contra zsh y bash de verdad (un shell que falta sale NO MEDIDO), lo literal queda literal, los agrupamientos cortan por profundidad y las palabras quedan enteras, formas de zsh, $'…', variables y arreglos (lo desconocido vale *), y el presupuesto global calculado antes de generar.",
       "raiz": "arnes",
       "ruta": "tests/shell-parse-expand.test.js",
+      "requiere": []
+    },
+    {
+      "__nota": "la versión de bash se lee con el idioma fijo: con LANG=es_ES.UTF-8 (Ubuntu) bash escribe «versión» y las pruebas que se saltean fuera de la referencia no la encontraban (A225, issue #1855); y ninguna prueba la lee por su cuenta",
+      "raiz": "arnes",
+      "ruta": "tests/bash-version-language.test.js",
       "requiere": []
     },
     {

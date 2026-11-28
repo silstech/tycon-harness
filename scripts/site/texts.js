@@ -37,7 +37,6 @@ const TEXTOS = {
   'vista.cargando': { es: 'cargando', en: 'loading' },
   'vista.cargandoMaquinas': { es: 'cargando las ejecuciones y lo que informan las máquinas: esta página se recarga sola hasta tenerlo', en: 'loading the runs and what the machines report: this page reloads by itself until it has it' },
   'vista.fuenteDelParen': { es: '(fuente del {fecha})', en: '(source from {fecha})' },
-  'vista.delParen': { es: '(del {fecha})', en: '(from {fecha})' },
   'vista.verLaLista': { es: 'ver cuáles (cada una lleva a donde se decide)', en: 'see which ones (each leads to where it is decided)' },
   'vista.verEnArnes': { es: 'ver en Arnés', en: 'see in Harness' },
   'vista.dondeSeDecide': { es: 'dónde se decide', en: 'where it is decided' },
@@ -249,7 +248,6 @@ const TEXTOS = {
   'decidir.gravedad.low': { es: 'baja', en: 'low' },
   'decidir.unaNoche': { es: '1 noche', en: '1 night' },
   'decidir.noches': { es: '{n} noches', en: '{n} nights' },
-  'decidir.corto.en_su_tarea': { es: 'se sigue en su tarea', en: 'followed in its work item' },
   'decidir.nadie_lo_sigue': { es: 'pull request #{n} cerrado sin resolver: nadie lo sigue', en: 'pull request #{n} closed without a fix: nobody follows it' },
   'decidir.en_su_tarea': { es: 'ya decidida: se sigue en su tarea, en Mantenimiento', en: 'already decided: it is followed in its work item, under Maintenance' },
   'decidir.tarea_cerrada': { es: 'su tarea {tarea} ({proyecto}) se cerró y la vulnerabilidad sigue: la noche le comentó; se decide en esa tarea', en: 'its work item {tarea} ({proyecto}) was closed and the vulnerability is still there: the nightly run commented on it; it is decided in that work item' },
@@ -315,9 +313,10 @@ const TEXTOS = {
   'proyectos.est.sinRango': { es: 'sin rango', en: 'no range' },
   'proyectos.est.encima': { es: 'encima por {por}', en: 'above by {por}' },
   'proyectos.est.debajo': { es: 'debajo por {por}', en: 'below by {por}' },
-  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} missing' },
+  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} left', uno: { es: 'abierta: falta 1', en: 'open: 1 left' } },
   'proyectos.est.totalDelProducto': { es: 'Total del producto', en: 'Product total' },
   'proyectos.est.parcial': { es: '(parcial: falta alguna épica)', en: '(partial: an epic is missing)' },
+  'proyectos.est.parcialAbierta': { es: '(parcial: alguna épica sigue abierta)', en: '(partial: an epic is still open)' },
   'proyectos.est.porUnidad': { es: 'sin tasa a horas, por unidad: {sumas}', en: 'no hourly rate, per unit: {sumas}' },
   'proyectos.est.sinEstimaciones': { es: 'sin estimaciones', en: 'no estimates' },
   'proyectos.est.ilegibles': { es: '{n} líneas ilegibles en el registro', en: '{n} unreadable lines in the log' },
@@ -415,7 +414,9 @@ const TEXTOS = {
   'arnes.motivoUltima4': { es: 'la imagen de stable no trae la etiqueta de versión', en: 'the stable image has no version label' },
   'arnes.motivoUltima5': { es: 'el sitio no sabe de qué imagen es (.tycon-release.json sin image)', en: 'the site does not know which image it comes from (.tycon-release.json without image)' },
   'arnes.ultimaSinMirar': { es: 'todavía no se miró la última publicada', en: 'the latest published has not been checked yet' },
-  'arnes.ultimaMirada': { es: '{version}{del} · última publicada en stable (mirada {hora})', en: '{version}{del} · latest published in stable (checked {hora})' },
+  'arnes.ultimaMirada': { es: '{version}{armada} · la más nueva del canal estable{mirada}', en: '{version}{armada} · the newest in the stable channel{mirada}' },
+  'arnes.ultimaArmada': { es: ' · imagen armada el {fecha}', en: ' · image built on {fecha}' },
+  'arnes.ultimaMiradaA': { es: ' (mirada a las {hora})', en: ' (checked at {hora})' },
   'arnes.comoEsta': { es: 'Cómo está el arnés', en: 'How the harness is doing' },
   'arnes.lede': { es: 'Lo que midió la noche y la versión del sitio. Las fichas de la noche están repartidas entre Arnés, Proyectos y Ejecuciones.', en: 'What the night run measured and this site\'s version. The nightly cards are spread across Harness, Projects and Runs.' },
 
@@ -2949,7 +2950,15 @@ function problemasDeLaTabla(tabla) {
       if (typeof v[i] !== 'string' || !v[i].trim()) out.push(`${k}: falta el texto en «${i}»`);
       else if (v[i].includes('<')) out.push(`${k}: el texto en «${i}» trae HTML`);
     }
-    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i)) out.push(`${k}: idioma desconocido «${i}»`);
+    // la forma `uno` (el singular, cuando `n` es 1): los dos idiomas, sin HTML, los mismos valores, y sólo en un texto con {n}
+    if (Object.prototype.hasOwnProperty.call(v, 'uno')) {
+      const u = v.uno;
+      if (!u || typeof u !== 'object' || IDIOMAS.some((i) => typeof u[i] !== 'string' || !u[i].trim()) || Object.keys(u).some((i) => !IDIOMAS.includes(i))) out.push(`${k}: la forma «uno» no es { es, en }`);
+      else if (IDIOMAS.some((i) => u[i].includes('<'))) out.push(`${k}: la forma «uno» trae HTML`);
+      else if (valoresDe(u.es).join(',') !== valoresDe(u.en).join(',')) out.push(`${k}: la forma «uno» no tiene los mismos valores en los dos idiomas`);
+      if (typeof v.es === 'string' && !v.es.includes('{n}')) out.push(`${k}: la forma «uno» sólo va en un texto con {n}`);
+    }
+    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i) && i !== 'uno') out.push(`${k}: idioma desconocido «${i}»`);
     if (typeof v.es === 'string' && typeof v.en === 'string' && valoresDe(v.es).join(',') !== valoresDe(v.en).join(',')) out.push(`${k}: los valores con nombre no son los mismos en los dos idiomas (${valoresDe(v.es).join(', ') || 'ninguno'} / ${valoresDe(v.en).join(', ') || 'ninguno'})`);
   }
   return out;
@@ -2962,7 +2971,9 @@ function problemasDeLaTabla(tabla) {
 function t(idioma, clave, valores = {}) {
   const e = TEXTOS[clave];
   if (!e) throw new Error(`texts.js: no hay texto para la clave «${clave}»`);
-  const s = e[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
+  // una clave con forma `uno` la usa cuando la cantidad `n` es 1 («1 tarea», no «1 tareas»)
+  const forma = e.uno && Number(valores.n) === 1 && String(valores.n).trim() !== '' ? e.uno : e;
+  const s = forma[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
   return s.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (m, n) => (Object.prototype.hasOwnProperty.call(valores, n) ? String(valores[n]) : m));
 }
 

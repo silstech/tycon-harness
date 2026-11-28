@@ -1212,7 +1212,7 @@ async function pool(items, worker, jobs) {
   const results = new Array(items.length);
   let i = 0;
   async function lane() {
-    while (i < items.length) { const idx = i++; results[idx] = await worker(items[idx], idx); }
+    while (i < items.length) { const idx = i++; results[idx] = await worker(items[idx]); }
   }
   await Promise.all(Array.from({ length: Math.min(jobs, items.length) }, () => lane()));
   return results;
