@@ -1080,6 +1080,7 @@ test('T50 CuentaQueElShellNoLee_SeLeeComoComando @A227 — corchete suelto, here
     env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
   });
   assert.strictEqual(r.status, 2, `frena en Codex\n${r.stderr}`);
+});
 
 // T49 PowerShellConComando_Y_ForDeCuentaSinPuntoYComa @A216
 // 🔴 Falla con: lo que corre PowerShell con `-Command` (o `-c`) sin leer como un comando más (`pwsh -Command
