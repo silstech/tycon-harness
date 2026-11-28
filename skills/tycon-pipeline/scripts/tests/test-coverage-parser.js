@@ -558,8 +558,37 @@ if (process.getuid && process.getuid() !== 0) {
       r5.source === 'bifurcacion' && r5.descartadas.some((d) => d.source === 'env'), JSON.stringify(r5));
     const r6 = cb.resolver({ repo: path.join(tmp, 'no-git'), env: {}, marker: null });
     check('T9 fuera de git no hay base (ref null) y se dice', r6.ref === null && r6.descartadas.length > 0, JSON.stringify(r6));
-    check('T9 …con el detalle de git, no sólo «no es un repo»', /cannot change|No such file|not a git/i.test(r6.descartadas[0].motivo || ''),
-      JSON.stringify(r6.descartadas));
+    // el detalle de git se reconoce por la carpeta que nombra, no por sus palabras: git las traduce según el idioma de la
+    // máquina («no se puede cambiar a '…'» con LANG=es_ES.UTF-8)
+    const conDetalle = (r) => String((r.descartadas[0] || {}).motivo || '').includes(`'${path.join(tmp, 'no-git')}'`);
+    check('T9 …con el detalle de git, no sólo «no es un repo»', conDetalle(r6), JSON.stringify(r6.descartadas));
+    // 🔴 A225: lo mismo con un git que traduce como gettext (LC_ALL manda, después LANG): con LANG en castellano y LC_ALL
+    //    sin poner, el chequeo que buscaba «cannot change|No such file|not a git» fallaba en Ubuntu
+    if (process.platform !== 'win32') {
+      const real = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+      const falso = fs.mkdtempSync(path.join(os.tmpdir(), 'covb-git-es-'));
+      fs.writeFileSync(path.join(falso, 'git'), [
+        '#!/bin/sh',
+        'loc="${LC_ALL:-${LANG:-C}}"',
+        'if [ "$1" = "-C" ] && [ ! -d "$2" ]; then',
+        `  case "$loc" in es*) echo "fatal: no se puede cambiar a '$2': No existe el archivo o el directorio" >&2 ;; *) echo "fatal: cannot change to '$2': No such file or directory" >&2 ;; esac`,
+        '  exit 128',
+        'fi',
+        `exec '${real}' "$@"`,
+        '',
+      ].join('\n'), { mode: 0o755 });
+      const antes = { PATH: process.env.PATH, LANG: process.env.LANG, LC_ALL: process.env.LC_ALL };
+      try {
+        process.env.PATH = `${falso}${path.delimiter}${process.env.PATH}`;
+        process.env.LANG = 'es_ES.UTF-8';
+        delete process.env.LC_ALL;
+        const r6es = cb.resolver({ repo: path.join(tmp, 'no-git'), env: {}, marker: null });
+        check('T9 …con git en castellano, el detalle se reconoce igual', r6es.ref === null && conDetalle(r6es), JSON.stringify(r6es.descartadas));
+      } finally {
+        for (const [k, v] of Object.entries(antes)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+        fs.rmSync(falso, { recursive: true, force: true });
+      }
+    }
     const r7 = cb.resolver({ repo, env: {}, marker: null, markerError: 'marker.js get salió 1: boom' });
     check('T9 un marcador que no se pudo leer queda en descartadas',
       r7.source === 'bifurcacion' && r7.descartadas.some((d) => d.source === 'marcador' && /boom/.test(d.motivo)), JSON.stringify(r7));

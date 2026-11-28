@@ -58,11 +58,8 @@ function shellsDeReferencia() {
 // /bin/bash es otro (el agente Linux de la CI trae el 5.x, que lee distinto las llaves con paso y con ceros) no hay contra
 // qué comparar: las dos pruebas que miden contra los shells se saltean DICIÉNDOLO, y el resto corre igual.
 // En la plataforma de referencia, un shell que falta sigue rojo.
-const BASH_VERSION = (() => {
-  const r = spawnSync('/bin/bash', ['--version'], { encoding: 'utf8' });
-  const m = /version (\d+\.\d+)/.exec(r.stdout || '');
-  return m ? m[1] : null;
-})();
+// la versión, con el idioma fijo: con LANG=es_ES.UTF-8 bash escribe «versión» y la lectura no la encontraba
+const BASH_VERSION = require('./lib/bash-version.js').versionDeBash();
 const OFF_REFERENCE = BASH_VERSION !== null && BASH_VERSION !== '3.2'
   && `no se mide acá: /bin/bash es ${BASH_VERSION} y la referencia es zsh + bash 3.2 (las Mac del equipo)`;
 
