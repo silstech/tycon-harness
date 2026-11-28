@@ -4511,6 +4511,12 @@
       "requiere": []
     },
     {
+      "__nota": "Todo el sitio en la hora de quien mira: el servidor manda cada momento como <time> con el instante en UTC (when.js) y site.js lo dice en la hora y el idioma del navegador, con un solo formato. Sin red.",
+      "raiz": "arnes",
+      "ruta": "tests/site-local-time.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "La cabecera de Ejecuciones en el sitio: el sello con la versión del sitio (o «desconocida») y el encabezado que nombra dónde están las seis preguntas. Sin red.",
       "raiz": "arnes",
       "ruta": "tests/runs-site-stamp.test.js",

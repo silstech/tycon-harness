@@ -22,6 +22,8 @@ const fs = require('fs');
 const path = require('path');
 const TX = require('../texts.js');
 const views = require('../views.js');
+// los días de la tabla, con el mismo formato que el resto del sitio (el mes en letras), sin pasarlos a ninguna zona
+const { textoDia } = require('../when.js');
 
 const DIAS = 30;
 // la evolución: 6 semanas, así que la pestaña lee 42 días; la tabla de cada día sigue mostrando 30
@@ -222,7 +224,7 @@ function htmlTabla(tabla, idioma) {
     const ninguna = !tot.con_horas && !tot.con_tokens;
     const total = ninguna ? `<div>${esc(t('horas.noMedido'))}</div>${sinMedir}`
       : lineas(idioma, { horas: tot.con_horas ? { arnes_segundos: tot.arnes_segundos, sesion_segundos: tot.sesion_segundos } : null, tokens: tot.con_tokens ? tot : null }) + sinMedir;
-    return `<tr><th scope="row">${esc(d)}</th>${celdas}<td class="total">${total}</td></tr>`;
+    return `<tr><th scope="row">${esc(textoDia(d, idioma, 'fecha'))}</th>${celdas}<td class="total">${total}</td></tr>`;
   }).join('');
   return `<div class="desliza" tabindex="0"><table class="horas"><thead>${cab}</thead><tbody>${filas}</tbody></table></div>`;
 }
@@ -387,7 +389,7 @@ function htmlResumen(r, idioma) {
   };
   const ficha = (titulo, valor, extra = '') => `<div class="ficha"><div class="ficha-titulo">${esc(titulo)}</div><div class="ficha-valor">${valor}</div>${extra}</div>`;
   const dias = r.semana.dias;
-  const titulo = dias.length ? `<h2>${esc(t('horas.semanaTitulo', { desde: dias[dias.length - 1], hasta: dias[0] }))}</h2>` : '';
+  const titulo = dias.length ? `<h2>${esc(t('horas.semanaTitulo', { desde: textoDia(dias[dias.length - 1], idioma), hasta: textoDia(dias[0], idioma, 'fecha') }))}</h2>` : '';
   const fichas = `<div class="fichas">${ficha(t('horas.fichaHoras'), h(r.semana.promedioDia), ant(r.anterior.promedioDia === null ? t('horas.noMedido') : horasDe(r.anterior.promedioDia), r.semana.promedioDia, r.anterior.promedioDia))}`
     + `${ficha(t('horas.fichaTokens'), tk(r.semana.tokens), ant(r.anterior.tokens === null ? t('horas.noMedido') : abreviar(r.anterior.tokens), r.semana.tokens, r.anterior.tokens)
       + (r.semana.tokensSinMedir ? `<div class="ficha-ant">${esc(r.semana.tokensSinMedir === 1 ? t('horas.tokensFaltan1') : t('horas.tokensFaltanN', { n: r.semana.tokensSinMedir }))}</div>` : ''))}`
@@ -416,7 +418,7 @@ function htmlSemanas(r, idioma) {
   const ancho = (W - IZQ - 10) / semanas.length;
   const barra = Math.min(48, ancho * 0.6);
   const ejeX = (i) => IZQ + i * ancho + (ancho - barra) / 2;
-  const fecha = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const fecha = (d) => textoDia(d, idioma);
   const grafico = (titulo, valores, formato, pila) => {
     const max = Math.max(1, ...valores.map((v) => (pila ? v.reduce((a, x) => a + (x.valor || 0), 0) : v || 0)));
     const y = (v) => ARRIBA + (H - ABAJO - ARRIBA) * (1 - v / max);
@@ -455,7 +457,7 @@ function htmlDiaPorPersona(tabla, r, idioma) {
   const t = (k, v) => TX.t(idioma, k, v);
   const dias = tabla.dias.slice(0, DIAS);
   // el día como en los gráficos (día/mes): la página no mezcla «11-27» con «27/11»
-  const cab = `<tr><th>${esc(t('horas.persona'))}</th>${dias.map((d) => `<th>${esc(`${d.slice(8, 10)}/${d.slice(5, 7)}`)}</th>`).join('')}</tr>`;
+  const cab = `<tr><th>${esc(t('horas.persona'))}</th>${dias.map((d) => `<th>${esc(textoDia(d, idioma))}</th>`).join('')}</tr>`;
   const filas = r.personas.map((p) => {
     const celdas = dias.map((d) => {
       let s = 0; let medido = false;

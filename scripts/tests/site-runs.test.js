@@ -1898,6 +1898,9 @@ test('T4 2.77-Guardada_BandaRecargaYApi @story-2.77 @ac-6 @ac-7', async () => {
     const p = await h.pedir('/corridas', { cookie: lead });
     assert.strictEqual(p.status, 200);
     assert.match(p.texto, BANDA);
+    // 🔴 la hora de la guardada, en la hora de quien mira: el instante viaja en UTC dentro de <time>, no un «UTC» suelto
+    // al lado del texto
+    assert.match(p.texto, /Se muestra la vista guardada el <time datetime="\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z" data-forma="fechaHora">\d{4}-\d\d-\d\d \d\d:\d\d UTC<\/time>;/);
     assert.match(p.texto, RECARGA);
     // llega la bajada entera: el armado nuevo se pone, sin banda ni recarga, y reemplaza la guardada
     fuentes.st.personas = { informados: H.informados(INFORMADOS), repos: null };
@@ -1917,6 +1920,7 @@ test('T4 2.77-Guardada_BandaRecargaYApi @story-2.77 @ac-6 @ac-7', async () => {
     assert.strictEqual(p.status, 200, p.texto);
     assert.match(p.texto, /No se pudo rearmar la vista de ejecuciones/);
     assert.ok(p.texto.includes(guardada.slice(0, 16).replace('T', ' ')), 'con la fecha de la guardada');
+    assert.match(p.texto, /desde <time datetime="[^"]+Z" data-forma="fechaHora">[^<]+ UTC<\/time> \(código/, 'en la hora de quien mira');
     assert.doesNotMatch(p.texto, BANDA);
     assert.doesNotMatch(p.texto, RECARGA);
   });
