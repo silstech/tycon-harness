@@ -110,9 +110,8 @@ async function reposClone(args, ctx) {
   const c = git(['-C', args.dest, 'checkout', '--quiet']);
   if (c.status !== 0) return fallar(c);
   if (!args.history) return { ok: true, value: { dir: args.dest } };
-  const { bajarHistorial } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
-  const h = bajarHistorial(git, args.dest, args.history);
-  return { ok: true, value: { dir: args.dest, history: h.ok ? 'completa' : 'incompleta', ...(h.ok ? {} : { historyDetail: h.detail }) } };
+  const { historialDelClon } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
+  return { ok: true, value: { dir: args.dest, ...historialDelClon(git, args.dest, args.history) } };
 }
 
 module.exports = { 'repos.list': reposList, 'repos.clone': reposClone };

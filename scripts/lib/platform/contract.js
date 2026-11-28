@@ -45,7 +45,8 @@ const presenteArg = (x) => x !== undefined && x !== null;
  * (el que dio la lista), `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano, que pone el núcleo) o
  * `depth` (la profundidad del clon completo); con `sparse`, opcional, `history` (pathspecs de git cuyo contenido en todo
  * el historial el conector deja bajado al clonar, mientras tiene la credencial: quien lee el clon después no la tiene);
- * contesta `{ dir }`, y con `history`, `history: 'completa' | 'incompleta'` (con `historyDetail`). Devuelve el problema en texto, o null. Qué claves
+ * contesta `{ dir }`, y con `history`, `history: 'completa' | 'incompleta' | 'innecesaria'` (con `historyDetail` si
+ * quedó incompleta; `innecesaria`: el repo no tiene `.tycon/` ni `.advisors/` y las métricas no lo miden). Devuelve el problema en texto, o null. Qué claves
  * lleva la fuente de cada plataforma lo valida quien la lee (operations-config.js).
  */
 function sourceArgsProblem(operation, a) {

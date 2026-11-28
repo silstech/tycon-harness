@@ -248,7 +248,7 @@ async function clone(o, env, out) {
       if (!c.ok) { e.fallidos.push({ id: it.id, motivo: c.reason, detalle: P.limpiar(c.detail) }); taken.delete(folder.toLowerCase()); continue; }
       if (!c.value || !c.value.dir) { taken.delete(folder.toLowerCase()); continue; } // un repo vacío: nada que medir
       // un historial que no se bajó entero: el repo se mide, y sus transiciones las métricas las dan por no medidas
-      if (c.value.history !== 'completa') e.sin_historial.push({ id: it.id, detalle: P.limpiar(c.value.historyDetail || 'el conector no bajó el historial') });
+      if (!['completa', 'innecesaria'].includes(c.value.history)) e.sin_historial.push({ id: it.id, detalle: P.limpiar(c.value.historyDetail || 'el conector no bajó el historial') });
       index[folder] = { source: label, platform: source.platform, id: it.id, group: groupOf(source, it.id) };
       traidos.set(clave, label);
       e.repos++;

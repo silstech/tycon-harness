@@ -220,9 +220,10 @@ function org(dest, header, env, teamRepos) {
     if (gitRun(['-C', destino, 'checkout', '--quiet'], { env: conCabecera(env, header) }).status !== 0) { fallidos.push(`${it.full}(checkout)`); continue; }
     // el clon liviano no guarda la cabecera: el historial que leen las métricas (las versiones viejas de cada Markdown)
     // se baja ahora, mientras está la credencial, porque el paso de las métricas no la tiene
-    const { bajarHistorial } = require(path.join(__dirname, '..', '..', '..', 'scripts', 'lib', 'clone-history.js'));
-    const h = bajarHistorial((a) => gitRun(a, { env: conCabecera(env, header) }), destino, ['*.md']);
-    if (!h.ok) console.log(`::warning::${it.full}: ${h.detail}`);
+    // (sólo de los repos que miden las métricas: los que tienen .tycon/ o .advisors/)
+    const { historialDelClon } = require(path.join(__dirname, '..', '..', '..', 'scripts', 'lib', 'clone-history.js'));
+    const h = historialDelClon((a) => gitRun(a, { env: conCabecera(env, header) }), destino, ['*.md']);
+    if (h.history === 'incompleta') console.log(`::warning::${it.full}: ${h.historyDetail}`);
   }
   const clonados = fs.readdirSync(dest, { withFileTypes: true }).filter((x) => x.isDirectory()).length;
   console.log(`repos vistos: ${total} · clonados: ${clonados}`);
@@ -304,9 +305,8 @@ function reposClone(args, ctx) {
   const c = gitRun(['-C', args.dest, 'checkout', '--quiet'], { env });
   if (c.status !== 0) return fallar(c);
   if (!args.history) return { ok: true, value: { dir: args.dest } };
-  const { bajarHistorial } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
-  const h = bajarHistorial((a) => gitRun(a, { env }), args.dest, args.history);
-  return { ok: true, value: { dir: args.dest, history: h.ok ? 'completa' : 'incompleta', ...(h.ok ? {} : { historyDetail: h.detail }) } };
+  const { historialDelClon } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
+  return { ok: true, value: { dir: args.dest, ...historialDelClon((a) => gitRun(a, { env }), args.dest, args.history) } };
 }
 
 module.exports = { 'repos.list': reposList, 'repos.clone': reposClone, listar, cabecera, declared, org };

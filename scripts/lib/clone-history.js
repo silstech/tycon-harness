@@ -9,6 +9,9 @@
 // la config del clon): `(args) => { status, stdout, stderr }`. No lanza: devuelve `{ ok, total, faltan, detail }`. Un
 // historial que no se bajó entero no corta el clon: las métricas cuentan lo que falta como «no medido».
 
+const fs = require('fs');
+const path = require('path');
+
 const LOTE = 500;                        // el lote de las métricas (scripts/metrics/sdlc-stage-metrics.js)
 const TOPE_MS = 5 * 60 * 1000;
 
@@ -23,6 +26,25 @@ function oidsDelHistorial(git, dir, pathspecs) {
     if (m && !/^0+$/.test(m[1])) oids.add(m[1]);
   }
   return [...oids];
+}
+
+/**
+ * Si las métricas miden el clon: tiene `.tycon/` o `.advisors/` (el mismo criterio que `tieneHuellaDelArnes` de
+ * scripts/metrics/sdlc-stage-metrics.js). El historial de un repo que no miden no se baja: en una organización grande
+ * serían minutos por repo para nada.
+ */
+function loMidenLasMetricas(dir) {
+  return fs.existsSync(path.join(dir, '.tycon')) || fs.existsSync(path.join(dir, '.advisors'));
+}
+
+/**
+ * Lo que contesta el conector en `history` después del checkout: `{ history, historyDetail? }`. `innecesaria` si las
+ * métricas no miden el repo (no se baja nada); `completa` o `incompleta` si se bajó.
+ */
+function historialDelClon(git, dir, pathspecs, opts) {
+  if (!loMidenLasMetricas(dir)) return { history: 'innecesaria' };
+  const h = bajarHistorial(git, dir, pathspecs, opts);
+  return h.ok ? { history: 'completa' } : { history: 'incompleta', historyDetail: h.detail };
 }
 
 function bajarHistorial(git, dir, pathspecs, { lote = LOTE, topeMs = TOPE_MS, ahora = Date.now } = {}) {
@@ -41,4 +63,4 @@ function bajarHistorial(git, dir, pathspecs, { lote = LOTE, topeMs = TOPE_MS, ah
     : { ok: true, total: oids.length, faltan: 0, detail: null };
 }
 
-module.exports = { bajarHistorial, oidsDelHistorial };
+module.exports = { bajarHistorial, oidsDelHistorial, loMidenLasMetricas, historialDelClon };

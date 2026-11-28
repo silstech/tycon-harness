@@ -161,7 +161,9 @@ function mundo({ platform = { default: 'github' }, team = null, extra = {} } = {
   fs.writeFileSync(path.join(tree, 'team-profile.json'), JSON.stringify({ integrations: { platform } }));
   const doc = team || { version: 1, public: { platform: 'github', org: 'acme', repo: 'arnes' }, profile: { platform: 'github', org: 'acme', repo: 'perfil' }, operations: { platform: 'github', org: 'acme', repo: 'operaciones' } };
   fs.writeFileSync(path.join(tree, 'team-repos.json'), JSON.stringify(doc));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, TYCON_HOME: path.join(home, '.tycon'), TYCON_INTEGRATIONS_DIR: ints, TYCON_TREE: tree,
+  // sin las variables que git le pasa a sus ganchos: los git de los hijos (los conectores, las métricas) operan sobre
+  // el clon, nunca sobre el repo de verdad
+  const env = { ...sinGitDelPadre(), HOME: home, USERPROFILE: home, TYCON_HOME: path.join(home, '.tycon'), TYCON_INTEGRATIONS_DIR: ints, TYCON_TREE: tree,
     NODE_EXTRA_CA_CERTS: cert().file, GIT_SSL_CAINFO: cert().file, GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_NOSYSTEM: '1' };
   for (const k of Object.keys(env)) if (/^(TYCON_(ADO_ORG|PLATFORM|PROFILE|GH_CMD|GLAB_CMD|GITLAB_PORT|GITLAB_MAX_PAGES|GITLAB_DEADLINE_MS)|HARNESS_SOURCE_CREDENTIALS|OWNERS|ORG_TOKEN|ORG_TOKEN_KIND|PREFIX|GITHUB_SERVER_URL|GH_TOKEN|GITHUB_TOKEN|FAKE_PLATFORM_.*)$/.test(k)) delete env[k];
   return { env, tree, ints, teamRepos: path.join(tree, 'team-repos.json') };
@@ -925,7 +927,7 @@ function repoConHistoria(root, full) {
   const s = path.join(tmp('semilla-'), 'x');
   git(path.dirname(s), ['clone', '--quiet', bare, s]);
   for (const [i, st] of ['draft', 'ready-for-dev', 'done'].entries()) {
-    write(s, { 'stories/s1.md': `---\nstory: S-1\nstatus: ${st}\n---\n# Uno\n`, 'src/app.js': `x${i}\n` });
+    write(s, { 'stories/s1.md': `---\nstory: S-1\nstatus: ${st}\n---\n# Uno\n`, 'src/app.js': `x${i}\n`, '.tycon/x.json': `{"v":${i}}\n` });
     git(s, ['add', '-A']); git(s, ['commit', '--quiet', '-m', st], { GIT_COMMITTER_DATE: `2026-01-0${i + 1}T00:00:00Z`, GIT_AUTHOR_DATE: `2026-01-0${i + 1}T00:00:00Z` });
   }
   git(s, ['branch', '-M', 'main']); git(s, ['push', '--quiet', 'origin', 'main']);
@@ -1011,8 +1013,8 @@ test('T36 Secreto_NiEnLosArgumentosDeGit @story-1.6 @ac-10', async () => {
   const PATH = `${espia.bin}${path.delimiter}${process.env.PATH}`;
   const b64 = Buffer.from(`oauth2:${TOKEN}`).toString('base64');
   const secretos = new RegExp(`${TOKEN}|${b64}|${Buffer.from(`x-access-token:${GH_TOKEN}`).toString('base64')}|${GH_TOKEN}|extraheader|authorization`, 'i');
-  // GitLab: el clon liviano con su historial y el completo
-  for (const args of [{ sparse: ['**/*.md'], history: ['*.md'] }, { depth: 1 }]) {
+  // GitLab: el clon liviano con su historial (los patrones del núcleo traen .tycon/: las métricas lo miden) y el completo
+  for (const args of [{ sparse: ['**/*.md', '.tycon/**'], history: ['*.md'] }, { depth: 1 }]) {
     espia.limpiar();
     const dest = path.join(tmp('clon-'), 'w');
     const r = resultado((await capa(m, 'repos.clone', { source: GL_SRC(lab.port), id: 'acme/web', dest, credential: TOKEN, ...args }, { TYCON_GITLAB_PORT: String(lab.port), PATH })).out);
@@ -1053,6 +1055,36 @@ test('T36 Secreto_NiEnLosArgumentosDeGit @story-1.6 @ac-10', async () => {
     const clon = modo === '--org' ? path.join(dest, 'acme__web') : path.join(dest, 'Acme', 'web');
     assert.doesNotMatch(fs.readFileSync(path.join(clon, '.git', 'config'), 'utf8'), /extraheader|authorization/i, `${modo}: sin la cabecera en el disco`);
   }
+});
+
+test('T41 Fuente_SinHuellaDelArnesNoBajaHistorial @story-1.6 @ac-6', async () => {
+  const repos = tmp('gl-repos-');
+  repoBare(repos, 'acme/suelto', { 'README.md': '# s\n', 'docs/a.md': 'a\n' });
+  repoConHistoria(repos, 'acme/web');
+  const lab = await gitlab({ repos, grupos: { acme: [[proyecto('acme', 'suelto'), proyecto('acme', 'web')]] } });
+  const m = mundo();
+  const espia = gitEspia();
+  const PATH = `${espia.bin}${path.delimiter}${process.env.PATH}`;
+  const clon = async (id) => {
+    espia.limpiar();
+    const dest = path.join(tmp('clon-'), 'x');
+    const r = resultado((await capa(m, 'repos.clone', { source: GL_SRC(lab.port), id, dest, sparse: ['**/*.md', '.tycon/**'], history: ['*.md'], credential: TOKEN }, { TYCON_GITLAB_PORT: String(lab.port), PATH })).out);
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    return { r, fetch: /^ARGV -C \S+ fetch /m.test(espia.leer()) };
+  };
+  // sin .tycon/ ni .advisors/ las métricas no lo miden: no se baja su historial
+  const suelto = await clon('acme/suelto');
+  assert.strictEqual(suelto.r.value.history, 'innecesaria');
+  assert.strictEqual(suelto.fetch, false, 'no se pidió el historial');
+  // con .tycon/, sí
+  const web = await clon('acme/web');
+  assert.strictEqual(web.r.value.history, 'completa');
+  assert.strictEqual(web.fetch, true, 'se pidió el historial');
+  // y la noche da la fuente por medida: un historial innecesario no es uno incompleto
+  const n = await noche(m, { port: lab.port, creds: { gitlab: TOKEN }, sources: [GL_SRC(lab.port)] });
+  assert.strictEqual(n.code, 0, n.all);
+  assert.strictEqual(fuente(n.estado, /gitlab/).estado, 'medida', n.all);
+  assert.strictEqual(fuente(n.estado, /gitlab/).repos, 2);
 });
 
 test('T40 Secreto_LaConfiguracionPreviaDeGitSigue @story-1.6 @ac-10', () => {
