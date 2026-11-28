@@ -715,8 +715,8 @@ function cuerposDistintos(hs) {
   return unicos.length <= CUERPOS_A_JUZGAR ? unicos : [...unicos.slice(0, mitad), ...unicos.slice(-mitad)];
 }
 
-function destinosResueltos(cmd, cwd, platform = process.platform, { keep = null } = {}) {
-  return extractWriteTargets(cmd, { keep }).map((raw) => {
+function destinosResueltos(cmd, cwd, platform = process.platform, { keep = null, cuentas = false } = {}) {
+  return extractWriteTargets(cmd, { keep, cuentas }).map((raw) => {
     const { valor, sinResolver, temporal } = expandirRuta(cmd, raw);
     return { raw, abs: resolveTarget(valor, cwd, platform, { homeVariable: true }), sinResolver, ...(temporal ? { temporal } : {}) };
   });
