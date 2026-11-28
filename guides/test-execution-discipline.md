@@ -1,5 +1,7 @@
 # Disciplina de ejecución de tests — no fundir la máquina del dev
 
+En inglés: [test-execution-discipline.en.md](test-execution-discipline.en.md).
+
 > **Regla de oro:** durante el desarrollo, el agente corre **solo los tests del/los archivo(s) que tocó**.
 > La suite completa corre **en el portón de `/tycon-merge-to-main`, cuando el dev la pide, o una vez
 > al cierre del Step 4 del pipeline de stories** (`test-gate.sh`), **nunca dos veces seguidas** y

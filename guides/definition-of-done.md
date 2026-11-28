@@ -1,5 +1,7 @@
 # Definition of Done — gates de transición de status
 
+En inglés: [definition-of-done.en.md](definition-of-done.en.md).
+
 **Aplicable a TODAS las stories TYCON.** Define gates obligatorios para dos transiciones:
 - `in-progress` → `review` (gate del **dev**: implementación cerrada SIN deferrals abiertos)
 - `review` → `done` (gate del **QA/UAT**: smoke check runtime + verificación end-to-end)
