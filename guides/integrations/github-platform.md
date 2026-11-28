@@ -1,5 +1,7 @@
 # GitHub como plataforma del equipo
 
+En inglés: [github-platform.en.md](github-platform.en.md).
+
 Esta guía es el caso de GitHub para lo que los pasos del arnés dicen en neutro: «el pedido de trabajo», «el pedido de
 cambio», «la CI» y «la plataforma del equipo». El de Azure DevOps está en `guides/integrations/ado-projects.md` y sus
 vecinas `ado-*`; cómo se arma un conector, en `guides/integrations/platform-connectors.md`.
