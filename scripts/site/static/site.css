@@ -613,6 +613,7 @@ body.demo .side{top:calc(var(--barra) + 36px);height:calc(100vh - var(--barra) -
 .m-sin{color:var(--ink-2)}
 .m-pie{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-top:10px}
 .m-autor{color:var(--ink-3);font-size:12.5px}
+.m-idioma{color:var(--ink-3);font-size:12.5px;margin:0 0 6px}
 .m-acciones{display:flex;gap:8px}
 .m-elegir{padding:6px 14px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font:13px var(--sans);cursor:pointer;min-height:36px}
 .m-elegir:hover{background:var(--wash)}

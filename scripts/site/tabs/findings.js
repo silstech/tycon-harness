@@ -850,9 +850,11 @@ function crearRutas({ cfg, fuentes, ahora = Date.now, fetch = globalThis.fetch, 
         const sugerencia = pr ? `<p class="m-propuesta">${esc(T(idioma, 'mant.dep.sugerencia', { accion: T(idioma, `mant.dep.sugerencia.${pr.accion}`) }))}${pr.razon ? ` ${es(pr.razon)}${idioma === 'es' ? '' : ` ${esc(T(idioma, 'mant.razonEnCastellano'))}`}` : ''}</p>` : '';
         cuerpo = `${f.fallo ? `<p class="m-fallo">${esc(f.fallo)}</p>` : ''}${aviso}${sugerencia}<p>${esc(f.que_paso)}${pedido}</p><div class="m-pie">${acciones}</div>`;
       } else if (a) {
-        cuerpo = renglon('mant.porQue', a.por_que_pasa) + renglon(`mant.recomienda.${a.recomendacion}`, a.por_que_recomienda)
+        // en otro idioma, el aviso de que el análisis está en castellano va antes del análisis, no debajo
+        cuerpo = (idioma === 'es' ? '' : `<p class="m-idioma">${esc(T(idioma, 'mant.analisisEnCastellano'))}</p>`)
+          + renglon('mant.porQue', a.por_que_pasa) + renglon(`mant.recomienda.${a.recomendacion}`, a.por_que_recomienda)
           + (a.arreglo ? renglon('mant.siSeArregla', a.arreglo) : '') + (a.si_vuelve ? renglon('mant.siVuelve', a.si_vuelve) : '')
-          + `<div class="m-pie"><span class="m-autor">${a.autor === 'persona' ? '' : `${esc(T(idioma, 'mant.autor.modelo'))} `}${idioma === 'es' ? '' : `${esc(T(idioma, 'mant.analisisEnCastellano'))} `}${ayuda('analisis')}</span>${acciones}</div>`;
+          + `<div class="m-pie"><span class="m-autor">${a.autor === 'persona' ? '' : `${esc(T(idioma, 'mant.autor.modelo'))} `}${ayuda('analisis')}</span>${acciones}</div>`;
       } else {
         // con la propuesta del modelo no dice además «Sin analizar»; el lugar de decidir se ve con su título
         const pr = f.propuesta;
