@@ -531,7 +531,6 @@ function paginaInicio(ctx) {
     : filaNo(T('inicio.tusCorridas'), d.corridas.motivo);
   // cada renglón: el enlace (o el marcador vacío) y el texto; sin enlace, el número va con el texto
   const lista = (items, fmt) => (items.length ? `<ul class="lista dos">${items.map((x) => renglonDeLista(...fmt(x))).join('')}</ul>` : `<p class="q-note">${esc(T('vista.ninguno'))}</p>`);
-  const conNumero = (u, numero, resto) => (enlace(u) ? [`<a href="${esc(u)}">${numero}</a>`, resto] : [null, `${numero} ${resto}`]);
   const prs = d.prs.estado === 'medido' ? lista(d.prs.lista, (p) => renglonDePr(p, idioma)) : filaNo(T('inicio.tusPrs'), d.prs.motivo);
   const ped = d.pedidos.estado === 'medido' ? lista(d.pedidos.lista, (p) => renglonDePedido(p, idioma)) : filaNo(T('inicio.loAsignado'), d.pedidos.motivo);
   const proy = d.proyectos.estado === 'medido' ? lista(d.proyectos.lista, (p) => [null, esc(p)]) : filaNo(T('inicio.tusProyectos'), d.proyectos.motivo);
