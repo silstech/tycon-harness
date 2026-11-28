@@ -137,7 +137,22 @@ function proyectar(def, m, cfg) {
     ...(def.id === 'rework_por_mes' && Array.isArray(m.filas) ? { meses: mesesDelSitio(m.filas) } : {}),
     // qué cuenta su número: las rehechas sin la deuda declarada (que la lista sí muestra), en los meses de la serie
     ...(def.id === 'rework_por_mes' && Array.isArray(m.filas) ? { cuenta: { clave: 'rehechas_sin_deuda', meses: mesesDelSitio(m.filas).length } } : {}),
+    // el desglose de las fichas que preguntan una comparación (frenaron contra saltearon, por carril, vuelve menos o
+    // no): sólo números y las claves de la lista de cada ficha, en el orden de la lista
+    ...(PARTES[def.id] && Array.isArray(m.partes) ? { partes: partesDelSitio(def.id, m.partes) } : {}),
   };
+}
+
+// las partes que cada ficha puede traer, en el orden en que se muestran
+const PARTES = Object.freeze({
+  frenos: ['frenaron', 'saltearon', 'avisaron'],
+  carriles: ['pipeline', 'adhoc', 'ninguno'],
+  rework_por_carril: ['vuelve_menos', 'no_vuelve_menos'],
+});
+/** Las partes de una ficha por lista blanca: la clave de su lista y un número; lo demás no viaja. */
+function partesDelSitio(id, partes) {
+  const lista = PARTES[id];
+  return lista.map((clave) => partes.find((x) => x && x.clave === clave && num(x.n) !== null)).filter(Boolean).map((x) => ({ clave: x.clave, n: num(x.n) }));
 }
 
 /** Las filas de «lo rehecho al lado de lo entregado» por lista blanca: a lo sumo siete meses bien formados. */
@@ -268,6 +283,7 @@ function tile(f, idioma = 'es') {
   const valor = formatear(f, idioma);
   const unidad = f.unidadDelValor ? ` ${T(`fichas.unidad.${f.unidadDelValor}${valor === '1' ? '1' : ''}`)}` : '';
   const extra = (Number.isFinite(f.umbralDias) ? `<div class="t-den">${esc(T(f.umbralDias === 1 ? 'fichas.masDeUnDia' : 'fichas.masDeDias', { d: f.umbralDias }))}</div>` : '')
+    + (Array.isArray(f.partes) && f.partes.length ? `<div class="t-den">${esc(f.partes.map((x) => T(`fichas.parte.${f.id}.${x.clave}`, { n: x.n })).join(' · '))}</div>` : '')
     + (Array.isArray(f.causas) && f.causas.length ? `<div class="t-den">${esc(f.causas.map((c) => `${T(CAUSAS.includes(c.clave) ? `fichas.causa.${c.clave}` : 'fichas.causa.otra')} ${c.n}`).join(' · '))}</div>` : '')
     // una línea por mes: las entregadas y cada causa de lo rehecho, con su nombre en el idioma de la página
     + (Array.isArray(f.meses) ? f.meses.map((x) => `<div class="t-den">${esc(T(x.en_curso ? 'fichas.mes.filaEnCurso' : 'fichas.mes.fila', {
