@@ -1811,7 +1811,8 @@ th small{display:block;font-size:9px;letter-spacing:.02em;text-transform:none;co
 td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}tr:hover td{background:var(--surface-2)}
 td.fecha{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);white-space:nowrap}td.fecha small{display:block;color:var(--ink-3);font-size:10.5px}
 td.story{min-width:150px}td.story .desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px;line-height:1.3;color:var(--ink-2);margin:1px 0}td.story b{font-weight:600}td.story small{display:block;color:var(--ink-3);font-size:11px;overflow-wrap:anywhere;min-width:12ch}
-td.barra{width:11%;min-width:110px}
+/* con 110 px las trece columnas no entraban a 1400 px por 2 px (ANCHO-T1): 96 deja aire y sigue más ancha que los 80 de antes */
+td.barra{width:11%;min-width:96px}
 .bar{display:flex;height:13px;border-radius:2px;overflow:hidden;min-width:8px}.bar i{display:block;height:100%}.bar .entre{background:repeating-linear-gradient(90deg,var(--line-strong) 0 1px,transparent 1px 3px)}.bar .falta{background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 4px)}
 .nobar{font-size:11px;color:var(--ink-3);font-style:italic}
 td.ar small{display:block;font-size:9.5px;font-style:italic}td.dur,td.ag,td.vu,td.tk,td.ar{font-family:"IBM Plex Mono",monospace;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
