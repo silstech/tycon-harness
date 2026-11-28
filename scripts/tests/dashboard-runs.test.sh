@@ -2335,6 +2335,12 @@ L = [lab(c) for c in R]
 for i in range(9):
     d = math.dist(L[i], L[i+1])
     assert d >= 15, 'los pasos %d y %d están a %.1f (menos de 15)' % (i, i+1, d)
+# cualquier par de pasos, no sólo los vecinos, a 20 o más: con 16, «Arranque» y «Validar la historia» eran dos celestes
+# casi iguales en la leyenda y en la barra de cada fila (A201)
+for i in range(10):
+    for j in range(i + 1, 10):
+        d = math.dist(L[i], L[j])
+        assert d >= 20, 'los pasos %d y %d están a %.1f (menos de 20)' % (i, j, d)
 tono = lambda l: math.degrees(math.atan2(l[2], l[1])) % 360
 dif = lambda a, b: min(abs(a - b), 360 - abs(a - b))
 # construir: Implementar e Implementar + pruebas (que nunca están en la misma ejecución) son una familia; Correr las
@@ -2592,7 +2598,7 @@ grep -qF 'container-type:inline-size' "${CSS_RUNS}" && grep -qF '.det{position:s
   && ok "A138 el detalle mide lo que se ve de la caja de la tabla" || mal "A138 el detalle sigue midiendo la ventana"
 grep -qF '@media (max-width:640px){.tabla{overflow-x:visible}.tabla>table{display:block' "${CSS_RUNS}" && ! grep -qF '.tabla table{display:block' "${CSS_RUNS}" \
   && ok "A139 en el celular, las reglas de la tabla no desarman la del detalle" || mal "A139 las reglas del celular alcanzan a las tablas del detalle"
-grep -qF '.shell .corridas .tl svg{min-width:600px !important;max-width:none}' "${CSS_SITIO}" \
+grep -qF '.shell .corridas .tl svg{min-width:1040px !important;max-width:none}' "${CSS_SITIO}" \
   && ok "A139 la línea de tiempo no se achica en el celular" || mal "A139 la línea de tiempo se achica al ancho del celular"
 # A147-A148: en el sitio, --good y --warn son colores de relleno (claros sobre blanco): el texto de la columna Pasos va con
 # su color de texto; los rótulos de las semanas no van en letra de 9,5.

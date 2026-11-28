@@ -1496,7 +1496,7 @@ function textosDe(c) {
 // verde azulado; Correr las pruebas, el 5, en terracota: con tres verdes azulados no se distinguía), revisar (7-8,
 // ámbar) y cerrar (9, violeta). Dos vecinos quedan a 15 o más de distancia de color (ΔE
 // de CIELAB): con una sola tonalidad, dos pasos seguidos no se distinguían. La copia del navegador es la misma.
-const RAMPA = ['#C9D6EA', '#9DB3D6', '#6E8DBF', '#3F64A0', '#9CD0CE', '#D98C5F', '#14555C', '#F2C46D', '#B07A12', '#6B4C9A'];
+const RAMPA = ['#B7CDFA', '#3E9EEE', '#6884A9', '#0E5BA1', '#88CAC8', '#D98C5F', '#14555C', '#F2C46D', '#B07A12', '#6B4C9A'];
 // la coma decimal es del castellano: en inglés va el punto
 // (sólo en un idioma que la tabla tiene: uno desconocido sale entero en castellano, y con coma)
 const decimal = (x, idioma) => (TX && TX.IDIOMAS.includes(idioma) && idioma !== ES ? String(Math.round(x * 10) / 10) : num1(x));
@@ -1790,7 +1790,7 @@ section{margin-top:40px}h2{font-size:clamp(18px,2.3vw,24px);letter-spacing:-.018
 .claves span{font-size:13px;line-height:1.5;color:var(--ink-2);text-wrap:pretty}.claves span b{font-family:inherit;font-size:inherit;letter-spacing:0;text-transform:none;color:var(--ink)}
 .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:17px 19px 13px;margin-top:13px}
 .card h3{margin:0 0 4px;font-size:14.5px;font-weight:600}.card p{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
-.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(390px,1fr))}
+.dos{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr))}
 .pasos{display:flex;flex-direction:column;gap:4px;margin-top:10px}
 .pfila{display:grid;grid-template-columns:210px 1fr 74px 96px;gap:9px;align-items:center;font-size:12px}
 .pfila .pn{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pfila .pn b{font-family:"IBM Plex Mono",monospace;color:var(--ink-3);margin-right:5px}
@@ -1844,6 +1844,8 @@ tr.abierta td{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)
 .det-chips{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .cerrar{font-family:"IBM Plex Mono",monospace;font-size:11px;background:none;border:1px solid var(--line-strong);color:var(--ink-2);padding:3px 8px;cursor:pointer}
 .tl{background:var(--surface);border:1px solid var(--line);padding:10px 8px 4px;overflow-x:auto}
+/* en una pantalla angosta los dos gráficos se deslizan de costado en vez de achicarse hasta que la letra no se lee */
+#gsem,#gpasos{overflow-x:auto}
 .tlleg{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:9px;font-size:11.5px;color:var(--ink-2)}
 .lgi{display:inline-flex;align-items:center;gap:6px}.lgi svg{flex:none}.lgi b{color:var(--ink)}
 .tlnota{font-size:12px;line-height:1.5;color:var(--ink-3);margin:9px 0 0;text-wrap:pretty}
@@ -2004,7 +2006,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     if (antes) partes.push(T('pasosSinMarca', { n: antes }));
     return partes.join('; ');
   };
-  var RAMPA = ['#C9D6EA','#9DB3D6','#6E8DBF','#3F64A0','#9CD0CE','#D98C5F','#14555C','#F2C46D','#B07A12','#6B4C9A'];
+  var RAMPA = ['#B7CDFA','#3E9EEE','#6884A9','#0E5BA1','#88CAC8','#D98C5F','#14555C','#F2C46D','#B07A12','#6B4C9A'];
   // el rótulo de cada barra, oscuro o blanco según su color: se lee sobre los diez
   var TINTA = ['#0b0b0b','#0b0b0b','#0b0b0b','#fff','#0b0b0b','#0b0b0b','#fff','#0b0b0b','#0b0b0b','#fff'];
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
@@ -2068,7 +2070,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var y = 16, ys = {};
     lanes.forEach(function (l, i3) { if (l.ctl && (i3 === 0 || !lanes[i3 - 1].ctl)) y += 12; ys[l.k] = y; y += l.h + (l.ctl ? 3 : 12); });
     var H = y + 40;
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:760px;display:block" role="img" aria-label="' + T('ariaLinea') + '">';
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:1040px;display:block" role="img" aria-label="' + T('ariaLinea') + '">';
     ejeTicks(maxT).forEach(function (t) {
       s += '<line x1="' + X(t).toFixed(1) + '" y1="10" x2="' + X(t).toFixed(1) + '" y2="' + (H - 34) + '" stroke="var(--line)"></line>';
       s += '<text x="' + X(t).toFixed(1) + '" y="' + (H - 18) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="var(--ink-3)">' + marcaDelEje(t) + '</text>';
@@ -2635,7 +2637,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var W = 720, H = 196, x0 = 40, x1 = 706, base = 148, top = 16, paso = (x1 - x0) / ks.length;
     var Y = function (v) { return base - (v / max) * (base - top); };
     var X = function (i) { return x0 + paso * i + paso / 2; };
-    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:520px;display:block" role="img" aria-label="' + T('ariaPasos') + '">';
+    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:600px;display:block" role="img" aria-label="' + T('ariaPasos') + '">';
     [0, max / 2, max].forEach(function (t) {
       s2 += '<line x1="' + x0 + '" y1="' + Y(t) + '" x2="' + x1 + '" y2="' + Y(t) + '" stroke="var(--line)"></line><text x="' + (x0 - 7) + '" y="' + (Y(t) + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11" fill="var(--ink-3)">' + t + '</text>';
     });
@@ -2804,7 +2806,7 @@ const CLIENTE_FUENTE = String.raw`(function () {
     var max = Math.max.apply(null, [1].concat(ks.map(function (k) { return porSem[k] || 0; })));
     var W = 720, H = 190, x0 = 34, x1 = 706, base = 148, top = 16, paso = (x1 - x0) / ks.length;
     var Y = function (v) { return base - (v / max) * (base - top); };
-    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:520px;display:block" role="img" aria-label="' + T('ariaSemanas') + '">';
+    var s2 = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;min-width:600px;display:block" role="img" aria-label="' + T('ariaSemanas') + '">';
     [0, Math.round(max / 2), max].forEach(function (t) {
       s2 += '<line x1="' + x0 + '" y1="' + Y(t) + '" x2="' + x1 + '" y2="' + Y(t) + '" stroke="var(--line)"></line><text x="' + (x0 - 7) + '" y="' + (Y(t) + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11.5" fill="var(--ink-3)">' + t + '</text>';
     });
