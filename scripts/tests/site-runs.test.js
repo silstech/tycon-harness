@@ -2614,3 +2614,52 @@ test('A145 Consumo_SinModelos_SinRenglonVacio — sin modelos no hay renglón «
     assert.match(conModelos({ 'claude-opus-5-5': { respuestas: 3 } }), /modelos: claude-opus-5-5 3/);
   });
 });
+
+// ── A196: en el celular, los gráficos de Ejecuciones se achicaban con la pantalla y su letra quedaba en 3 a 4 px ──────
+// Un gráfico se dibuja en su ancho propio (W) y el navegador lo escala: la letra que se ve mide su tamaño por el ancho
+// dibujado sobre W. En su ancho mínimo, ningún rótulo de los gráficos ni de la línea de tiempo baja de 9 px, en la
+// página de la noche y en el sitio; y la caja de cada uno se desliza de costado en vez de cortarlo.
+test('A196 Corridas_GraficosLegiblesEnElCelular — la letra de los gráficos y de la línea de tiempo no baja de 9 px en su ancho mínimo', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(raiz, 'scripts', 'nightly', 'dashboard', 'runs.js'), 'utf8');
+  const css = fs.readFileSync(path.join(raiz, 'scripts', 'site', 'static', 'site.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const cuerpo = (nombre) => {
+    const i = src.indexOf(`  function ${nombre}(`);
+    assert.ok(i >= 0, `está la función ${nombre}`);
+    return src.slice(i, src.indexOf('\n  function ', i + 10));
+  };
+  // la regla del sitio que fija el ancho mínimo del svg de una caja: la última que la nombra, o la general
+  const reglas = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), dec: m[2] }));
+  const minimoEnElSitio = (caja) => {
+    let px = null;
+    for (const r of reglas) {
+      const mw = /min-width:(\d+)px\s*!important/.exec(r.dec) || (/min-width:0\s*!important/.test(r.dec) ? [null, '0'] : null);
+      if (!mw) continue;
+      const sels = r.sel.split(',').map((s) => s.trim());
+      if (sels.includes('.shell .corridas svg') && px === null) px = Number(mw[1]);
+      if (sels.includes(`.shell .corridas ${caja} svg`) || sels.includes(`.shell .corridas ${caja}>svg`)) px = Number(mw[1]);
+    }
+    return px;
+  };
+  for (const [nombre, caja] of [['graficoSemanas', '#gsem'], ['graficoPasos', '#gpasos'], ['timeline', '.tl']]) {
+    const c = cuerpo(nombre);
+    const W = Number(/var W = (\d+)/.exec(c)[1]);
+    const letras = [...c.matchAll(/font-size="(?:' \+ \(f \? )?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+    assert.ok(letras.length, `${nombre}: tiene rótulos`);
+    const letra = Math.min(...letras);
+    const noche = Number(/min-width:(\d+)px/.exec(c)[1]);
+    const sitio = minimoEnElSitio(caja);
+    assert.ok(letra * noche / W >= 9, `${nombre}: en la página de la noche la letra baja a ${(letra * noche / W).toFixed(1)} px (${letra} de ${W}, a ${noche} px)`);
+    assert.ok(letra * sitio / W >= 9, `${nombre}: en el sitio la letra baja a ${(letra * sitio / W).toFixed(1)} px (${letra} de ${W}, a ${sitio} px)`);
+    const id = caja.slice(1);
+    assert.match(src, new RegExp(`(^|[},])\\s*[^{}]*\\${caja[0]}${id}(?![\\w-])[^{}]*\\{[^}]*overflow-x:auto`, 'm'), `${caja}: su caja se desliza de costado`);
+  }
+  // el ancho mínimo es del gráfico, no de cada svg de su caja: el iconito de «línea base» de la leyenda, estirado a 600
+  // px, dejaba un hueco de 200 px debajo del gráfico
+  assert.doesNotMatch(css, /#gsem svg|#gpasos svg/, 'la regla de los gráficos alcanza sólo al gráfico (#gsem>svg, #gpasos>svg)');
+  // en el escritorio no se deslizan: la columna de la grilla de los gráficos es al menos su ancho mínimo más el relleno
+  // de la ficha (19 px de cada lado y el borde); si no entran dos, va uno por renglón
+  const sem = Number(/min-width:(\d+)px/.exec(cuerpo('graficoSemanas'))[1]);
+  const col = /\.dos\{[^}]*minmax\(min\(100%,(\d+)px\),1fr\)/.exec(src);
+  assert.ok(col && Number(col[1]) >= sem + 40, `la columna de la grilla de los gráficos (${col ? col[1] : 'fija'}) es más angosta que el gráfico (${sem} + 40)`);
+});
