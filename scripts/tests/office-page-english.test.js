@@ -265,3 +265,16 @@ test('T-pie Footer_OnlyWhenSomeSessionShowsPromisedOrDifference — el pie sale 
   assert.match(CODE, /function renderCrew\(\)\{[^\n]*foot"\)\.hidden=!conPrometido\(agents\)/, 'la oficina local lo usa');
   assert.match(CODE, /\$\("foot"\)\.hidden=!oficinas\.size\|\|!\[\.\.\.oficinas\.values\(\)\]\.some\(o=>conPrometido\(/, 'el sitio también');
 });
+
+// 🔴 Falla con: en la oficina en inglés, las frases fijas de cada sesión en castellano: «el plan espera tu firma»,
+// «Espera su turno para entrar», «sin novedades», «parada desde las 10:20» (recorrido del sitio del 27/11). Las que
+// arma la foto con texto fijo, y las del demo, salen traducidas; los títulos de las historias quedan como vinieron.
+test('T-frases Session_FixedPhrases_InEnglish — lo que hace, espera o la frena cada sesión, en inglés', () => {
+  const { traducir } = block({ source: 'site', lang: 'en' });
+  const DEMO = require(path.join(__dirname, '..', 'site', 'demo', 'data.js')).oficinasDeEjemplo(Date.UTC(2026, 10, 28, 13, 0));
+  const frases = new Set(['Sin trabajo', 'Coordina las sesiones de esta máquina', 'la firma la coordinadora', 'parada desde las 10:20',
+    'Inactiva: sin novedades desde las 10:20.', 'Una prueba: su cuadro es parte de la prueba.']);
+  for (const o of DEMO) for (const a of o.foto.agents) for (const k of ['haciendo', 'espera', 'parada']) if (a[k]) frases.add(a[k]);
+  const sinTraducir = [...frases].filter((f) => traducir(f) === f);
+  assert.deepStrictEqual(sinTraducir, [], 'frases que quedan en castellano');
+});

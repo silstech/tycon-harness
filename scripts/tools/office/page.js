@@ -33,6 +33,8 @@ const EN={
   "Implementar":"Implement","Correr las pruebas":"Run the tests","Revisores":"Reviewers",
   "Hallazgos":"Findings","Probar en vivo":"Try it live","Preparar el pull request":"Prepare the pull request","Cerrar la historia":"Close the story",
   "coordina":"coordinates",
+  // lo que espera una sesión, como lo dicen las ejecuciones
+  "el plan espera tu firma":"the plan waits for your signature","Espera su turno para entrar":"Waits for its turn to merge",
   "Libre":"Free","Coordinando":"Coordinating","Inactiva":"Inactive","Terminado, falta cerrar":"Done, still to close","Pasada de la hora":"Past its time","En hora":"On time",
   "Agentes de IA":"AI agents","Pendientes":"Pending","tocá para ver el detalle":"tap to see the detail","TU FIRMA":"SIGN","PARADA":"STOPPED",
   "A medio camino":"Halfway","Camino corto":"Short path","Cargando las oficinas…":"Loading the offices…","Con la coordinadora":"With the coordinator","Con las sesiones":"With the sessions",
