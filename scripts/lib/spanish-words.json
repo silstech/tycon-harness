@@ -1024,6 +1024,10 @@
       "reason": "parte de la opción --attr-source de git: no se puede renombrar; decidido por la coordinadora el 2026-10-31"
     },
     {
+      "words": ["lcov"],
+      "reason": "opción y formato de cobertura de cargo-llvm-cov (--lcov), el que lee la puerta: no se puede renombrar; decidido por la coordinadora el 2026-11-28"
+    },
+    {
       "words": ["pathext"],
       "reason": "variable de entorno de Windows (PATHEXT) con las extensiones de los programas: no se puede renombrar; decidido por la coordinadora el 2026-10-31"
     },
