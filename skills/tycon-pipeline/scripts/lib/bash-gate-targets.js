@@ -102,7 +102,10 @@ function stripNonCommandText(s, hondo = 0, { cuentas = false } = {}) {
   // nulo no llega al shell, y sale antes de marcar los cuerpos sacados (las marcas se borran al final)
   const sinNulos = String(s || '').split(MARCA_DE_CUERPO).join('');
   const sinCuerpos = conComentariosApagados(quitarCuerposDeHeredoc(sinNulos, true));
-  const t = cuentas ? sinCuentasSueltas(sinCuerpos, adentroDeUnaCuenta) : sinCuerpos;
+  // (con un `<<` en el comando no se leen: un heredoc cuyo cuerpo no se sacó, `dash << 'E F'`, lleva `((…))` que corre.
+  // Se busca con los saltos de renglón escapados unidos, como los une bash: `<\⏎<` es `<<`)
+  const conHeredoc = /(?<!<)<<(?!<)/.test(sinCuerpos.replace(/\\\n/g, ''));
+  const t = cuentas && !conHeredoc ? sinCuentasSueltas(sinCuerpos, adentroDeUnaCuenta) : sinCuerpos;
   return vaciarCitados(t, hondo).replace(RENGLON_DE_MARCA, '');
 }
 
@@ -191,6 +194,7 @@ function adentroDeUnaCuenta(t, i, fin, { sinPesos = false, conPuntoYComa = false
   if (t[i + 1] !== '(' || t[i + 2] !== '(' || t[fin - 1] !== ')') return null;
   let out = '';
   let hondo = 0;
+  let brackets = 0;
   for (let j = i + 2; j < fin; j++) {
     const ch = t[j];
     if (ch === '$' && t[j + 1] === '(') {
@@ -206,9 +210,12 @@ function adentroDeUnaCuenta(t, i, fin, { sinPesos = false, conPuntoYComa = false
     if (!LETRA_DE_CUENTA.test(ch) || ((ch === '<' || ch === '>') && t[j + 1] === '(')) return null;
     if (ch === '(') hondo++;
     else if (ch === ')' && --hondo === 0 && j !== fin - 1) return null;
+    // con un `]` sin abrir (o un `[` sin cerrar) zsh no la lee como cuenta y corre lo de adentro
+    if (ch === '[') brackets++;
+    else if (ch === ']' && --brackets < 0) return null;
     out += ' ';
   }
-  return hondo === 0 ? out : null;
+  return hondo === 0 && brackets === 0 ? out : null;
 }
 
 /**

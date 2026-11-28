@@ -36,7 +36,7 @@ function correr({ home, dir }, command, env = {}, sesion = 's-anidados') {
   const log = path.join(home, '.claude', '.tycon-pipeline', 'hook-errors.log');
   fs.rmSync(log, { force: true });
   const base = {};
-  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('TYCON_')) base[k] = v;
+  for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
   const r = spawnSync(process.execPath, [GATE], {
     input: JSON.stringify({ tool_name: 'Bash', session_id: sesion, cwd: dir, tool_input: { command } }),
     env: { ...base, HOME: home, USERPROFILE: home, TYCON_NO_RUN_CHANGE: '1', ...env }, encoding: 'utf8', timeout: 15000,
@@ -1022,11 +1022,62 @@ test('T48 CuentaSinPesos_NoEsUnDestino @A213 — el > de (( … )) compara; lo q
   // en PowerShell (y en lo que corre Monitor) `((x > f))` escribe: la cuenta se lee así sólo en la herramienta Bash
   for (const herramienta of ['PowerShell', 'Monitor']) {
     const base = {};
-    for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('TYCON_')) base[k] = v;
+    for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
     const r = spawnSync(process.execPath, [GATE], {
       input: JSON.stringify({ tool_name: herramienta, session_id: 's-anidados', cwd: c.dir, tool_input: { command: `(( x > ${H} ))` } }),
       env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
     });
     assert.strictEqual(r.status, 2, `frena en ${herramienta}\n${r.stderr}`);
   }
+});
+
+// T49 CuentaSinPesos_DesdeLaCarpetaDeEstado @A227
+// 🔴 Falla con: parado en la carpeta de estado, el número de `(( n > 1 ))` leído como un archivo por la segunda lectura
+// de destinos (la que expande variables), que no sabía de las cuentas: frenaba un comando que escribe en /tmp.
+test('T49 CuentaSinPesos_DesdeLaCarpetaDeEstado @A227 — el > de (( … )) compara también parado en el estado', () => {
+  const c = corral();
+  const estado = path.join(c.home, '.claude', '.tycon-pipeline');
+  fs.mkdirSync(estado, { recursive: true });
+  const enEstado = { home: c.home, dir: estado };
+  const fuera = path.join(c.raiz, 'ok.txt');
+  for (const cmd of [`(( n > 1 )) && echo x > ${fuera}`, `if (( n >= 2 )); then echo x > ${fuera}; fi`,
+    `for ((i=0;i<3;i++)); do echo $i >> ${fuera}; done`]) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 0, `pasa: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+  // lo que escribe de verdad en la carpeta de estado sigue frenando
+  for (const cmd of ['(( n > 1 )) && echo x > nota.txt', '(( 1 )) > nota.txt']) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+});
+
+// T50 CuentaQueElShellNoLee_SeLeeComoComando @A227
+// 🔴 Falla con: una «cuenta» que el shell no lee como cuenta dejada en blanco: con un `]` sin abrir zsh corre lo de
+// adentro; un heredoc cuyo cuerpo no se sacó (delimitador `'E F'`) puede llevar `((…))` que `dash` corre; y en Codex
+// (que también llega como `Bash`, y en Windows corre PowerShell) `((…))` son dos paréntesis (revisión de Fable de la A227).
+test('T50 CuentaQueElShellNoLee_SeLeeComoComando @A227 — corchete suelto, heredoc sin sacar, Codex', () => {
+  const c = corral();
+  const estado = path.join(c.home, '.claude', '.tycon-pipeline');
+  fs.mkdirSync(estado, { recursive: true });
+  const enEstado = { home: c.home, dir: estado };
+  const fuera = path.join(c.raiz, 'ok.txt');
+  for (const cmd of [`((: ] && echo hi > nota.txt)); echo x > ${fuera}`, `((: a] && echo hi > nota.txt))`,
+    `dash << 'E F'\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`, `dash << "E F"\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`,
+    // bash une `<\⏎<` en `<<` (segunda vuelta de Fable)
+    `dash <\\\n< 'E F'\n((echo hi > nota.txt))\nE F\necho x > ${fuera}`]) {
+    const r = correr(enEstado, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+  // una cuenta con corchetes parejos sigue pasando
+  const r0 = correr(enEstado, `(( a[1] > 2 )) && echo x > ${fuera}`);
+  assert.strictEqual(r0.salida, 0, `pasa con corchetes parejos\n${r0.stderr}`);
+  // en Codex la cuenta no se lee así
+  const base = {};
+  for (const [k, v] of Object.entries(process.env)) if (!/^(TYCON_|CODEX_)/.test(k)) base[k] = v;
+  const r = spawnSync(process.execPath, [GATE], {
+    input: JSON.stringify({ tool_name: 'Bash', turn_id: 't-1', session_id: 's-anidados', cwd: estado, tool_input: { command: `((x > nota.txt)); echo x > ${fuera}` } }),
+    env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
+  });
+  assert.strictEqual(r.status, 2, `frena en Codex\n${r.stderr}`);
 });

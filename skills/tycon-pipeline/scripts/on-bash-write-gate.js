@@ -372,7 +372,7 @@ function handleUnaLectura(event, opts = {}) {
       deprecado = require('./on-deprecated-edit.js').porLaTerminal({
         cmd, cwd: cwdDelComando(cmd, baseCwd),
         // todo destino, sea o no código: lo deprecado puede ser una guía, un esquema o una configuración
-        destinos: (c, cwd) => destinosResueltos(c, cwd, process.platform, { keep: () => true }).map((d) => d.abs),
+        destinos: (c, cwd) => destinosResueltos(c, cwd, process.platform, { keep: () => true, cuentas: leeCuentas(event) }).map((d) => d.abs),
         sessionId: resolveSessionId(event?.session_id),
         stateDir: opts.stateDir || require('./lib/story-gate-io.js').DEFAULT_STATE_DIR,
         via: `Bash: ${String(cmd).replace(/\s+/g, ' ').slice(0, 120)}`,
@@ -614,7 +614,7 @@ function handleCarrilEHistoria(event, opts = {}) {
   });
   const cmdDestinos = sub.cmd;
   // una cuenta sin `$` (`(( a > b ))`) se lee como cuenta sólo en el comando de la herramienta Bash (`sinCuentasSueltas`)
-  const targets = extractWriteTargets(cmdDestinos, { keep, cuentas: event?.tool_name === 'Bash' });
+  const targets = extractWriteTargets(cmdDestinos, { keep, cuentas: leeCuentas(event) });
   if (!skillOff) {
     // una historia que existe y no está en borrador no se escribe por consola (con o sin ejecución abierta)
     const historias = historiasPorConsola(cmd, cwd, targets, baseCwd, sub.destinos, 0, installedRoots);
@@ -645,7 +645,7 @@ function handleCarrilEHistoria(event, opts = {}) {
 
   const sessionId = resolveSessionId(event?.session_id);
   // Con las variables del comando (y del ambiente) expandidas; lo no resuelto queda anotado para el mensaje
-  const resueltos = destinosResueltos(cmdDestinos, cwd, process.platform, { keep });
+  const resueltos = destinosResueltos(cmdDestinos, cwd, process.platform, { keep, cuentas: leeCuentas(event) });
   const absTargets = [...new Set([...resueltos.map((d) => d.abs), ...armadosAbs])];
   const sinResolverDe = new Map(resueltos.filter((d) => d.sinResolver.length).map((d) => [d.abs, d]));
   // los destinos relativos, si el comando cambia de carpeta con un `cd` (o `pushd`/`popd`) que no es el que se sigue: el
@@ -865,6 +865,15 @@ function handleCarrilEHistoria(event, opts = {}) {
 
 // cargado entero: de acá en más, una falla sin prever va por la red de fallas
 cargado = true;
+/**
+ * ¿El `((…))` sin `$` del comando se lee como cuenta? Sólo en la herramienta Bash de Claude Code (bash o zsh). En
+ * PowerShell, en lo que corre Monitor y en Codex (que también llega como `Bash`, y en Windows corre PowerShell) son dos
+ * paréntesis y lo de adentro corre.
+ */
+function leeCuentas(event) {
+  return event?.tool_name === 'Bash' && !require('./lib/story-skill-gate-io.js').isCodexEvent(event);
+}
+
 module.exports = { handle, programasPorEntrada, sinComentarioAlFinal, sinCierre, blancoPorRedireccion, splitSegments, SHELL_CON_C, BORRA_O_MUEVE, guionesEnArchivo, carpetasQueBorraOMueve, borraEjecucionAbierta, corredoresDeLaOrganizacion, anotarBorradosDeLaStory, resolveTarget, cwdDelComando, destinosResueltos, extractWriteTargets, destinosArmados, destinosBorrados, stripNonCommandText, leadingCd, heredocs, heredocBodies, inlineStoryText, nameSuggestsStory, renameOrCopyOfExistingStory, PIPELINE_LISTA, frenaLaRed, quitarCuerposDeHeredoc, vaAUnShell, comandosAnidados, comandosPorOtroPrograma };
 
 if (require.main === module) {
