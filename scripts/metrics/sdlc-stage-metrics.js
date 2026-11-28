@@ -1013,9 +1013,34 @@ function tiempoPorEtapa(transiciones) {
  * 24 stories que un producto da por cubiertas estarían cubiertas por archivos de otro — los números
  * de story se repiten entre productos (`4.3`, `5.1`, `3.2`…).
  */
+/**
+ * El índice de carpetas que deja la noche al clonar las fuentes de operations.json (scripts/nightly/sources.js):
+ * `{ "<carpeta>": { source, platform, id, group } }`, al lado de los clones. Null si no está o no se lee.
+ */
+const INDICES = new Map();
+function indiceDeFuentes(padre) {
+  if (INDICES.has(padre)) return INDICES.get(padre);
+  let v = null;
+  try { v = JSON.parse(fs.readFileSync(path.join(padre, 'sources-index.json'), 'utf8')); } catch { v = null; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) v = null;
+  INDICES.set(padre, v);
+  return v;
+}
+
 function dirsDeEvidencia(repo) {
   const dodDirs = [path.join(repo, '.advisors', 'dod-runtime')];
   const base = path.basename(repo);
+  // Con el índice de las fuentes, los hermanos son los de la misma fuente y el mismo grupo: el nombre de la carpeta no
+  // dice nada (dos fuentes pueden tener un dueño del mismo nombre, y un grupo puede llevar `__`).
+  const indice = indiceDeFuentes(path.dirname(repo));
+  if (indice && indice[base] && indice[base].group) {
+    for (const [carpeta, e] of Object.entries(indice)) {
+      if (carpeta === base || !e || e.group !== indice[base].group) continue;
+      const d = path.join(path.dirname(repo), carpeta, '.advisors', 'dod-runtime');
+      if (fs.existsSync(d)) dodDirs.push(d);
+    }
+    return dodDirs;
+  }
   const sep = base.indexOf('__');
   const grupo = sep > 0 ? base.slice(0, sep + 2) : null; // "Proyecto__" en el layout plano
   try {

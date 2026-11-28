@@ -107,13 +107,26 @@ sin pipeline se mergea en el acto, y que los estados de commit se leen antes de 
 todas las sesiones: aparecen la primera vez que el agente usa `glab mr`, `glab ci`, `glab api` o `glab issue` en una
 sesión, y sólo si la organización eligió GitLab para algo (`integrations/gitlab/notices.json`).
 
+## Los repos de GitLab en los procesos de la noche
+
+La noche de GitHub Actions mide los repos de un grupo de GitLab sin moverlos a GitHub: se declara el grupo como fuente
+en `operations.json → nightly.sources` (`{ "platform": "gitlab", "namespace": "acme/productos", "host": "…" }`, con
+`host` sólo para una instalación propia) y su token, con `read_api` y `read_repository`, en el secreto
+`HARNESS_SOURCE_CREDENTIALS` (`{ "gitlab": "glpat-…" }`). El conector lista los proyectos del grupo y de sus subgrupos
+(`repos.list`, con los archivados marcados: no se clonan ni se dan por faltantes) y los clona (`repos.clone`) hablando HTTP directo con la API v4: en el servidor de
+la noche no hace falta glab. Sus repos entran a las métricas, a la revisión de dependencias y al tablero, que muestra si
+cada fuente quedó medida, medida en parte o no medida, con su motivo. Cómo se declara, paso a paso, y lo que todavía no
+hace: `pipelines/operations/github/README.md`, punto 3.2.
+
 ## Lo que todavía no atiende
 
 - La cola (`queue.read`), los despliegues (`deployments.read`) y la regla de aprobación de una rama
-  (`branch-rules.read`): el conector no las declara y la capa las contesta «no soportado».
+  (`branch-rules.read`): el conector no las declara y la capa las contesta «no soportado». Por eso la foto de
+  despliegues de un producto de GitLab sale «no medido».
 - Los épicos y los merge trains, que son de los planes de pago.
 - Votar un pedido de cambio registra sólo la aprobación; otro voto es «no soportado».
-- Los procesos de la noche, el alta de una organización con su perfil en GitLab y el sitio de la organización no usan
-  todavía repos de GitLab.
+- Los avisos de dependencias como issues de GitLab (piden un token que escribe), la paridad de los pipelines de un repo
+  de GitLab, el pipeline de Azure DevOps leyendo fuentes de GitLab, el alta de una organización con su perfil en GitLab y
+  el sitio de la organización leyendo repos de GitLab.
 
 Las operaciones que sí atiende están en `integrations/gitlab/integration.json`.

@@ -121,6 +121,9 @@ jobs:
           ORG_TOKEN_KIND: ${{ steps.org-token.outcome == 'success' && 'app' || 'user' }}
           OWNERS: ${{ vars.METRICS_OWNERS }}
           PREFIX: ${{ vars.METRICS_REPO_PREFIX }}
+          # con `nightly.sources` en operations.json, el token de cada plataforma de las fuentes (un JSON
+          # { "<plataforma>": "<token>" }): sólo en este paso, que lista y clona
+          HARNESS_SOURCE_CREDENTIALS: ${{ secrets.HARNESS_SOURCE_CREDENTIALS }}
         run: bash pipelines/operations/github/clone-repos.sh --org "${RUNNER_TEMP}/repos" --team-repos team-repos.json
 
       - name: El árbol sigue siendo el que se armó (antes de medir)
@@ -174,3 +177,5 @@ jobs:
             --message "chore(metricas): snapshot SDLC ${DAY} [nocturno]" \
             --require-daily '.dashboard/sdlc-stage-{day}.json' \
             -- '.dashboard/sdlc-stage-*.json' '.dashboard/proyectos/*.json' 2>&1 | bash pipelines/operations/github/annotate.sh
+          # el estado de cada fuente de nightly.sources (si las hay), para la fila de cada una en el tablero
+          node scripts/ci/push-nightly-data.js save --message "chore(metricas): estado de las fuentes ${DAY} [nocturno]" -- '.dashboard/nightly-sources-*.json'

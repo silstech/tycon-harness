@@ -6,6 +6,8 @@
 // Quién elige (el contrato, scripts/lib/platform/contract.js):
 //   · lo atado a un repo (pedidos de cambio, la CI) va por la plataforma de ese repo en team-repos.json; un repo que no
 //     la declara usa el valor por defecto del perfil;
+//   · lo de una fuente (listar y clonar los repos que mide la noche) va por la plataforma de esa fuente
+//     (`source.platform`), nunca por el perfil;
 //   · lo demás lo elige el perfil del equipo, `integrations.platform`: el área de la operación (`workItems`, `queue`) o
 //     su `default`; sin la clave, la plataforma del repo de operaciones de team-repos.json (lo que se usaba antes).
 // La capa no adivina: sin elección, con un valor que no es un conector, o con un conector que no está, contesta
@@ -32,7 +34,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
-const { OPERATIONS, REASONS, REPO_OPERATIONS, ESTIMATE_OPERATIONS, areaOf, shapeProblem, estimateProblem, openProblem } = require('./contract.js');
+const { OPERATIONS, REASONS, REPO_OPERATIONS, SOURCE_OPERATIONS, ESTIMATE_OPERATIONS, areaOf, shapeProblem, estimateProblem, openProblem, sourceArgsProblem } = require('./contract.js');
 const INT = require('../integrations.js');
 const TEAM_REPOS = require('../team-repos.js');
 
@@ -232,6 +234,16 @@ function connector(name, env) {
 function choose(operation, opts = {}) {
   const env = opts.env || process.env;
   if (!OPERATIONS.includes(operation)) return no('no_soportado', `operación desconocida: ${operation} (las del contrato: ${OPERATIONS.join(', ')})`);
+  if (SOURCE_OPERATIONS.includes(operation)) {
+    // la plataforma la decide la fuente: el perfil no cuenta (ni siquiera si está roto)
+    const s = opts.source;
+    if (!s || typeof s !== 'object' || !s.platform) return no('sin_plataforma', `${operation} es de una fuente: falta source, con su platform`);
+    const fuente = TEAM_REPOS.connectorOf(s.platform);
+    if (!fuente) return no('sin_plataforma', `plataforma desconocida: «${s.platform}» (la fuente)`);
+    const cf = connector(fuente, env);
+    if (cf.problem) return no('sin_plataforma', `${cf.problem}: la fuente no se puede medir`);
+    return { ok: true, value: { connector: fuente, origin: 'fuente' } };
+  }
   const perfil = profileChoice(opts);
   if (perfil.problem) return no('sin_plataforma', `la elección de plataforma del perfil está rota: ${perfil.problem}`);
   const elegida = perfil.value || {};
@@ -344,6 +356,11 @@ async function call(manifest, operation, args, opts) {
     const malo = openProblem(args);
     if (malo) return no('rechazado', `pedido de cambio sin forma: ${malo}`);
   }
+  // un pedido de fuente sin forma no llega al conector: el id va a la dirección del clon
+  if (SOURCE_OPERATIONS.includes(operation)) {
+    const malo = sourceArgsProblem(operation, args);
+    if (malo) return no('rechazado', `pedido de fuente sin forma: ${malo}`);
+  }
   let mod;
   try { mod = require(path.join(manifest.dir, manifest.connector)); } catch (e) {
     return no('no_medido', `el conector ${manifest.name} no carga (${(e && e.code) || String((e && e.message) || e).split('\n')[0]})`);
@@ -400,6 +417,8 @@ function summary(operation, r, label) {
 
 /** Elige el conector de la operación y le pasa el pedido. Las del pedido de trabajo traen además su `summary`. */
 async function run(operation, args = {}, opts = {}) {
+  // una operación de fuente se elige por la fuente que viene en el pedido
+  if (SOURCE_OPERATIONS.includes(operation) && args && !opts.source) opts = { ...opts, source: args.source };
   const c = choose(operation, opts);
   const env = opts.env || process.env;
   const manifest = c.ok ? INT.find(c.value.connector, { kind: 'platform', env }) : null;
@@ -436,8 +455,13 @@ async function conformance(name, opts = {}) {
     entrada: { pipeline: 'Proyecto/publicar', stages: ['Prod'], repo: 'acme/portal', environment: 'production' }, entorno: 'production',
     sourceBranch: 'prueba/conformidad', targetBranch: 'main', text: 'prueba de conformidad', deleteSourceBranch: true, waitMinutes: 0, pollSeconds: 0,
   };
+  // la fuente de prueba es de la plataforma del propio conector, y el clon va a una carpeta que no existe: sin
+  // credencial, el conector contesta sin_credencial antes de tocar nada
+  const plataforma = Object.keys(TEAM_REPOS.CONNECTORS).find((p) => TEAM_REPOS.CONNECTORS[p] === name) || name;
+  const FUENTE = { source: { platform: plataforma }, id: 'prueba/conformidad', dest: path.join(os.tmpdir(), `conformidad-${process.pid}-${Date.now()}`, 'clon'), depth: 1 };
   for (const op of c.manifest.operations) {
-    const r = await call(c.manifest, op, PRUEBA, { ...opts, repo: opts.repo || { org: 'acme', repo: 'portal' } });
+    const args = SOURCE_OPERATIONS.includes(op) ? { ...PRUEBA, ...FUENTE } : PRUEBA;
+    const r = await call(c.manifest, op, args, { ...opts, repo: opts.repo || { org: 'acme', repo: 'portal' } });
     const mal = shapeProblem(r);
     if (mal) problems.push(`${op}: ${mal}`);
     else if (!r.ok && /fuera del contrato|no exporta|no carga/.test(r.detail)) problems.push(`${op}: ${r.detail}`);

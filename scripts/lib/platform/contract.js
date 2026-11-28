@@ -3,14 +3,16 @@
 // no, y qué decide la plataforma de cada operación. Lo comparten el lector de integraciones (que valida los manifiestos
 // de los conectores) y la capa (scripts/lib/platform/platform.js), sin requerirse entre ellos.
 
-// Las quince operaciones: cinco del pedido de trabajo (crear, cambiar, cerrar, buscar por etiqueta y leer su estado),
+// Las diecisiete operaciones: cinco del pedido de trabajo (crear, cambiar, cerrar, buscar por etiqueta y leer su estado),
 // cuatro del pedido de cambio (abrir, votar, listar los abiertos y leer uno por su número), lo asignado, la CI, la cola,
-// los despliegues, la regla de aprobación de una rama y las alertas abiertas del análisis de seguridad en la rama
-// principal. Un conector declara cuáles implementa; las demás contestan no_soportado.
+// los despliegues, la regla de aprobación de una rama, las alertas abiertas del análisis de seguridad en la rama
+// principal, y los repos de una fuente (listarlos y clonar uno). Un conector declara cuáles implementa; las demás
+// contestan no_soportado.
 const OPERATIONS = Object.freeze([
   'work-item.create', 'work-item.update', 'work-item.close', 'work-item.find', 'work-item.read',
   'change-request.open', 'change-request.vote', 'change-request.list', 'change-request.read',
   'assigned.list', 'ci.read', 'queue.read', 'deployments.read', 'branch-rules.read', 'security-alerts.list',
+  'repos.list', 'repos.clone',
 ]);
 
 // Los motivos de un «no». Una lectura que falló es no_medido: nunca una lista vacía ni un cero.
@@ -18,6 +20,10 @@ const REASONS = Object.freeze(['sin_plataforma', 'sin_credencial', 'no_soportado
 
 // Las operaciones atadas a un repo: van por la plataforma que declara ese repo en team-repos.json.
 const REPO_OPERATIONS = Object.freeze(['change-request.open', 'change-request.vote', 'change-request.list', 'change-request.read', 'ci.read', 'branch-rules.read', 'security-alerts.list']);
+
+// Las operaciones de una fuente (un dueño o un grupo de repos que mide la noche, `nightly.sources` de operations.json):
+// van por la plataforma de esa fuente (`source.platform`), nunca por el perfil ni por el repo actual.
+const SOURCE_OPERATIONS = Object.freeze(['repos.list', 'repos.clone']);
 
 // Las demás las elige el perfil del equipo (`integrations.platform`): por su área, o por el valor por defecto.
 const AREAS = Object.freeze(['default', 'workItems', 'queue']);
@@ -28,7 +34,34 @@ const AREA_OF = Object.freeze({
 });
 
 /** El área del perfil que elige la plataforma de una operación que no es de un repo (null si es de un repo). */
-function areaOf(operation) { return REPO_OPERATIONS.includes(operation) ? null : (AREA_OF[operation] || 'default'); }
+function areaOf(operation) { return REPO_OPERATIONS.includes(operation) || SOURCE_OPERATIONS.includes(operation) ? null : (AREA_OF[operation] || 'default'); }
+
+const presenteArg = (x) => x !== undefined && x !== null;
+
+/**
+ * Si los argumentos de una operación de fuente tienen la forma del contrato. Las dos llevan `source` (un objeto con
+ * `platform` y las claves del repo de esa plataforma sin la última, `repo`) y, opcional, `credential` (el token de esa
+ * plataforma, que pasa quien llama). `repos.list` contesta `[{ id, name, archived }]`. `repos.clone` lleva además `id`
+ * (el que dio la lista), `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano, que pone el núcleo) o
+ * `depth` (la profundidad del clon completo); contesta `{ dir }`. Devuelve el problema en texto, o null. Qué claves
+ * lleva la fuente de cada plataforma lo valida quien la lee (operations-config.js).
+ */
+function sourceArgsProblem(operation, a) {
+  if (a === null || typeof a !== 'object' || Array.isArray(a)) return 'los argumentos no son un objeto';
+  const s = a.source;
+  if (s === null || typeof s !== 'object' || Array.isArray(s)) return 'falta source: la fuente, con su platform';
+  if (!(typeof s.platform === 'string' && /^[a-z][a-z0-9-]*$/.test(s.platform))) return `source.platform tiene que ser el nombre de una plataforma (es ${JSON.stringify(s.platform)})`;
+  if (presenteArg(a.credential) && typeof a.credential !== 'string') return 'credential, si viene, es un texto';
+  if (operation !== 'repos.clone') return null;
+  // el id llega a la dirección del clon: sin opciones disfrazadas, sin `..` ni espacios
+  if (!(typeof a.id === 'string' && /^(?![-/])(?!.*\.\.)\S{1,400}$/.test(a.id))) return `id tiene que ser el repo que dio la lista (es ${JSON.stringify(a.id)})`;
+  if (!(typeof a.dest === 'string' && (a.dest.startsWith('/') || /^[A-Za-z]:[\\/]/.test(a.dest)))) return 'dest tiene que ser una carpeta absoluta';
+  const conSparse = presenteArg(a.sparse); const conDepth = presenteArg(a.depth);
+  if (conSparse === conDepth) return 'el clon lleva sparse (los patrones del clon liviano) o depth (la profundidad), uno de los dos';
+  if (conSparse && !(Array.isArray(a.sparse) && a.sparse.length && a.sparse.every((p) => typeof p === 'string' && p.trim() && !p.startsWith('-')))) return 'sparse es una lista de patrones';
+  if (conDepth && !(Number.isInteger(a.depth) && a.depth >= 1)) return 'depth es un entero mayor que 0';
+  return null;
+}
 
 /** Si un resultado tiene la forma del contrato: `{ok:true, value}` o `{ok:false, reason, detail}` con un motivo cerrado. */
 function shapeProblem(r) {
@@ -123,4 +156,4 @@ function approvalFaults(a) {
   return out;
 }
 
-module.exports = { OPERATIONS, REASONS, REPO_OPERATIONS, AREAS, AREA_OF, ESTIMATE_OPERATIONS, ESTIMATE_UNITS, areaOf, shapeProblem, verdictOf, estimateProblem, openProblem, approvalFaults };
+module.exports = { OPERATIONS, REASONS, REPO_OPERATIONS, SOURCE_OPERATIONS, sourceArgsProblem, AREAS, AREA_OF, ESTIMATE_OPERATIONS, ESTIMATE_UNITS, areaOf, shapeProblem, verdictOf, estimateProblem, openProblem, approvalFaults };

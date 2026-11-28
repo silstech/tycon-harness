@@ -199,9 +199,15 @@ jobs:
         working-directory: harness
         env:
           ORG_TOKEN: ${{ steps.org-token.outputs.token || secrets.HARNESS_ORG_TOKEN }}
+          # el token de cada plataforma de las fuentes (un JSON { "<plataforma>": "<token>" }): sólo en este paso, que
+          # lista y clona; nunca en el trabajo ni en el que corre código de los productos
+          HARNESS_SOURCE_CREDENTIALS: ${{ secrets.HARNESS_SOURCE_CREDENTIALS }}
         run: |
           set -uo pipefail
           node scripts/nightly/dependencies/nightly-dependencies.js clone-list | bash pipelines/operations/github/clone-repos.sh --declared "${RUNNER_TEMP}/repos"
+          # las entradas de repos.json con `source` (un repo de otra plataforma): el clon se le pide a la capa
+          node scripts/nightly/dependencies/nightly-dependencies.js clone-list --sources | node scripts/nightly/sources.js clone-declared "${RUNNER_TEMP}/repos" \
+            || echo "::warning::El clon de los repos de las fuentes terminó con código $? — esos repos van a salir «no medido»"
           # Lo que la lista de productos declara y la revisión no trajo, con la credencial todavía viva. En otra
           # invocación, DESPUÉS: en la misma tubería, clone-list no vería los clones de arriba y los pediría de nuevo. Y nunca
           # corta el paso (GitHub lo corre con bash -e): una lista rota no puede llevarse la revisión de dependencias.

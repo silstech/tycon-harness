@@ -196,6 +196,15 @@ function repoShapeProblem(s) {
     if (!Array.isArray(s.optional) || !s.optional.every((k) => typeof k === 'string' && CLAVE_DE_REPO.test(k)) || new Set(s.optional).size !== s.optional.length) return '«repoShape.optional» es una lista de claves distintas, en minúsculas';
     if (s.optional.some((k) => k === 'platform' || s.keys.includes(k))) return '«repoShape.optional» no repite una de «keys» ni lleva «platform»';
   }
+  // `defaults`: el valor que vale cuando un repo no trae una clave optativa (el servidor público, sin `host`): con él, un
+  // repo sin la clave y otro que la nombra con ese valor son el mismo
+  if (s.defaults !== undefined) {
+    if (!isObject(s.defaults)) return '«repoShape.defaults» es un objeto: por clave optativa, su valor cuando el repo no la trae';
+    for (const [k, v] of Object.entries(s.defaults)) {
+      if (!Array.isArray(s.optional) || !s.optional.includes(k)) return `«repoShape.defaults.${k}»: «${k}» no es una clave de «optional»`;
+      if (typeof v !== 'string' || !v.trim()) return `«repoShape.defaults.${k}» es un texto`;
+    }
+  }
   // `rules`: la regla propia de una clave, cuando no es la del nombre: otra expresión (`name`) o tramos (`parts`)
   if (s.rules !== undefined) {
     if (!isObject(s.rules)) return '«repoShape.rules» es un objeto: por clave, su regla';

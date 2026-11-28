@@ -50,7 +50,8 @@
  * `por_ruta` es lo que lee el sitio: una entrada por `ruta` de la lista, `{ruta, estado, motivo, divergencias,
  * vencidas}`, sólo cantidades. `estado`: `medido`, `desde_disco` o `no_medido`; `motivo`, de una lista cerrada:
  * `sin_clon` (la carpeta no está, o no hay carpeta de clones), `ilegible` (no se pudo leer su archivo, o la
- * configuración trae un rasgo o un grupo roto), `grupo_sin_comparar`, `declaracion_incompleta` o `null`. Un repo en
+ * configuración trae un rasgo o un grupo roto), `grupo_sin_comparar`, `declaracion_incompleta`, `fuente` (un repo de
+ * una fuente de otra plataforma, `source`: sus pipelines todavía no se comparan) o `null`. Un repo en
  * varios grupos lleva el peor estado. `divergencias` cuenta los rasgos en que ese repo quedó del lado distinto: el
  * lado más chico (con empate, los dos) y, en un exigido que nadie cumple, todos. `vencidas` cuenta las declaraciones
  * vencidas de sus grupos. El texto de los YAML, la carpeta de los clones y las rutas absolutas NO van al archivo.
@@ -190,7 +191,7 @@ function nombresDelGrupo(g) {
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
 
 // El peor estado de una ruta que está en varios grupos: un repo que no se pudo medir en uno no se ve «medido» por otro.
-const GRAVEDAD = { 'medido/null': 0, 'desde_disco/null': 1, 'no_medido/grupo_sin_comparar': 2, 'no_medido/declaracion_incompleta': 3, 'no_medido/ilegible': 4, 'no_medido/sin_clon': 5 };
+const GRAVEDAD = { 'medido/null': 0, 'desde_disco/null': 1, 'no_medido/grupo_sin_comparar': 2, 'no_medido/declaracion_incompleta': 3, 'no_medido/ilegible': 4, 'no_medido/sin_clon': 5, 'no_medido/fuente': 6 };
 
 /** El resultado que guarda `--out`: se arma mientras el control imprime lo de siempre. */
 function nuevoResultado(cfg, hoy) {
@@ -251,6 +252,8 @@ function cloneList(o) {
     if (!enJuego(cfg, grupo, g)) continue;   // ningún rasgo le aplica: no se compara, no hace falta clonarlo
     for (const r of g.repos) {
       if (!r || typeof r.ruta !== 'string' || !r.ruta) continue;
+      // un repo de una fuente no se clona para la paridad: sale no medido (lo dice la comparación)
+      if (r.source && typeof r.source === 'object') { process.stderr.write(`⚠️ ${r.ruta}: es de una fuente (${r.source.platform}): no se clona para la paridad (va a salir «no medido»)\n`); continue; }
       if (!porRuta.has(r.ruta)) porRuta.set(r.ruta, { dir: '', otra: '' });
       const e = porRuta.get(r.ruta);
       const dir = clave ? r[clave] : (r.ado || r.github);
@@ -493,6 +496,16 @@ function main(argv0) {
     for (const [i, r] of g.repos.entries()) {
       const nombre = nombres[i];
       rutaDe[nombre] = r.ruta;
+      // un repo de una fuente (`source`, de otra plataforma): sus pipelines no tienen la forma que se compara, así que
+      // sale no medido con su motivo, nunca «coincide» ni «diverge»
+      if (r.source && typeof r.source === 'object') {
+        textos[nombre] = null; ausentes++;
+        if (juega) {
+          R.res.no_medidos.push({ grupo, producto: r.producto, ruta: r.ruta, motivo: `es de una fuente (${r.source.platform}): la paridad todavía no compara sus pipelines` });
+          R.marcar(r.ruta, 'no_medido', 'fuente');
+        }
+        continue;
+      }
       const hayCarpeta = fs.existsSync(path.join(raiz, r.ruta));
       const f = path.join(raiz, r.ruta, g.archivo);
       // 🔴 NO SE PREGUNTA POR EL DISCO ANTES DE MIRAR LO PUBLICADO. Un

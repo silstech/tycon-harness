@@ -115,7 +115,7 @@ function repoShape(platform) {
       if (s) {
         const rules = {};
         for (const [k, r] of Object.entries(s.rules || {})) rules[k] = reglaDe(r);
-        forma = { label: m.label, keys: s.keys, optional: s.optional || [], name: new RegExp(s.name, s.flags || ''), nameHint: s.nameHint, rules };
+        forma = { label: m.label, keys: s.keys, optional: s.optional || [], defaults: s.defaults || {}, name: new RegExp(s.name, s.flags || ''), nameHint: s.nameHint, rules };
       }
     } catch (_) { forma = null; }
     FORMAS.set(platform, forma);

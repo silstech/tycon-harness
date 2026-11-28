@@ -60,6 +60,11 @@
 //     "findings": { "resolve_after_nights": 1..30 },          opcional — cuántas noches medidas seguidas sin aparecer
 //                                                            resuelven una ficha de la noche. Sin la
 //                                                            clave, 3. Lo lee scripts/nightly/findings/cycle.js
+//     "nightly": { "sources": [ { "platform": <plataforma>,  opcional — las fuentes cuyos repos mide la noche: cada
+//                                 …claves de la fuente } ] }, una con la forma del repo de su conector sin `repo` (el
+//                                                            dueño o el grupo). Un problema adentro no anula el archivo:
+//                                                            sale en `sectionProblems.nightly` y `data` viene sin la
+//                                                            sección. Lo lee scripts/nightly/sources.js
 //     "people": {                                            opcional — quién es quién
 //       "machines": { "<máquina>": {                         opcional — cada máquina confirmada por un mantenedor
 //           "person": <correo>,                              la persona dueña de las corridas de esa máquina
@@ -100,7 +105,8 @@
 const fs = require('fs');
 
 const VERSION = 1;
-const KEYS = ['version', 'owners', 'reviewers', 'site', 'people', 'deployments', 'notify', 'work_items', 'findings'];
+const KEYS = ['version', 'owners', 'reviewers', 'site', 'people', 'deployments', 'notify', 'work_items', 'findings', 'nightly'];
+const NIGHTLY_KEYS = ['sources'];
 // el pedido de trabajo de una vulnerabilidad: el tipo de work item y sus campos (lo lee la revisión nocturna)
 const WORK_ITEM_KEYS = ['type', 'fixed_fields', 'by_severity', 'org', 'project'];
 const SEVERITIES = ['critical', 'high', 'moderate', 'low'];
@@ -689,13 +695,53 @@ function findingsProblems(f) {
 }
 
 /** `{ ok, data, problems }` del texto de un operations.json. */
+// La validación de la forma de una fuente: la da quien tiene el arnés completo (`useSourceValidator`, desde
+// scripts/nightly/sources.js, con el lector de team-repos.js y la forma de repo de cada conector). Este archivo viaja
+// solo y no la carga: sin ella, valida lo mínimo (la plataforma con forma de nombre y valores de texto).
+let sourceValidator = null;
+/** `fn(source, at)` → `[{ path, message }]`: los problemas de la forma de una fuente sin su `repo`. */
+function useSourceValidator(fn) { sourceValidator = typeof fn === 'function' ? fn : null; }
+
+/**
+ * Los problemas de la sección `nightly`: `{ sources: [ { platform, …claves de la fuente } ] }`, las fuentes cuyos repos
+ * mide la noche. Cada fuente se valida con la forma de repo que declara el conector de su plataforma (`repoShape`), sin
+ * su última clave: una fuente es un dueño o un grupo, no trae `repo`.
+ */
+function nightlyProblems(n) {
+  const at = 'nightly';
+  if (!isObject(n)) return [{ path: at, message: 'tiene que ser un objeto: { "sources": [ … ] }' }];
+  const out = unknownKeys(n, NIGHTLY_KEYS, at);
+  if (n.sources === undefined) return out;
+  if (!Array.isArray(n.sources)) return [...out, { path: `${at}.sources`, message: 'tiene que ser una lista de fuentes: { "platform": …, y las claves del dueño o del grupo }' }];
+  const vistas = new Set();
+  n.sources.forEach((s, i) => {
+    const p = `${at}.sources.${i}`;
+    if (!isObject(s)) { out.push({ path: p, message: 'tiene que ser un objeto con platform y las claves del dueño o del grupo' }); return; }
+    if (Object.prototype.hasOwnProperty.call(s, 'repo')) { out.push({ path: `${p}.repo`, message: 'una fuente no lleva repo: es el dueño o el grupo cuyos repos mide la noche' }); return; }
+    const malos = sourceValidator ? sourceValidator(s, p) : [
+      ...(typeof s.platform === 'string' && PROVIDER_NAME.test(s.platform) ? [] : [{ path: `${p}.platform`, message: 'tiene que ser el nombre de una plataforma' }]),
+      ...Object.keys(s).filter((k) => k !== 'platform' && !comment(k) && !(typeof s[k] === 'string' && s[k].trim())).map((k) => ({ path: `${p}.${k}`, message: 'tiene que ser un texto no vacío' })),
+    ];
+    if (malos.length) { out.push(...malos); return; }
+    const clave = JSON.stringify(Object.keys(s).sort().map((k) => [k, String(s[k]).toLowerCase()]));
+    if (vistas.has(clave)) out.push({ path: p, message: 'la misma fuente está dos veces' });
+    vistas.add(clave);
+  });
+  return out;
+}
+
 function parse(text) {
   let doc;
   try { doc = JSON.parse(String(text)); } catch (e) {
     return { ok: false, data: null, problems: [{ path: '', message: `no es JSON válido: ${String((e && e.message) || e).split('\n')[0]}` }] };
   }
   const problems = validate(doc);
-  return { ok: problems.length === 0, data: problems.length ? null : doc, problems };
+  // un problema dentro de `nightly` no anula el archivo (como `models` en team-repos.json): sale en
+  // sectionProblems.nightly y `data` viene sin la sección (la noche sigue con lo de hoy, diciéndolo)
+  const np = isObject(doc) && doc.nightly !== undefined ? nightlyProblems(doc.nightly) : [];
+  let data = problems.length ? null : doc;
+  if (data && np.length) { data = { ...doc }; delete data.nightly; }
+  return { ok: problems.length === 0, data, problems, ...(np.length ? { sectionProblems: { nightly: np } } : {}) };
 }
 
 /** Lo mismo desde un archivo; si no se pudo leer, `couldNotRead: true` con el motivo. */
@@ -714,7 +760,7 @@ function ownerFor(data, project) {
   return Object.prototype.hasOwnProperty.call(bp, project) ? bp[project] : data.owners.default;
 }
 
-module.exports = { VERSION, KEYS, OWNER_KEYS, REVIEWER_KEYS, SITE_KEYS, OFFICES_KEYS, OFFICES_VISIBILITY, INVITATION_KEYS, CARD_IDS,ACCESS_KEYS, ACCESS_ROLES, BRAND_KEYS, BRAND_LOGO, NOTIFY_CHANNELS, MAILBOX_PROVIDERS, useMailboxConnectors, mailboxFields, mailboxLabels, REFRESH_MIN, REFRESH_MAX, EMAIL, ACCOUNT, CONTAINER, PEOPLE_KEYS, MACHINE_KEYS, HIDDEN_KEYS, HIDDEN_REASONS, PROJECT_KEYS, FORMA_MAQUINA, DEPLOYMENT_PROVIDERS, DEPLOYMENT_SIDES, GITHUB_REPO, SEVERITIES, WORK_ITEM_KEYS, FINDINGS_KEYS, RESOLVE_AFTER_MIN, RESOLVE_AFTER_MAX, WORK_ITEM_RESERVED, parse, load, ownerFor, workItemFieldOk };
+module.exports = { useSourceValidator, NIGHTLY_KEYS, VERSION, KEYS, OWNER_KEYS, REVIEWER_KEYS, SITE_KEYS, OFFICES_KEYS, OFFICES_VISIBILITY, INVITATION_KEYS, CARD_IDS,ACCESS_KEYS, ACCESS_ROLES, BRAND_KEYS, BRAND_LOGO, NOTIFY_CHANNELS, MAILBOX_PROVIDERS, useMailboxConnectors, mailboxFields, mailboxLabels, REFRESH_MIN, REFRESH_MAX, EMAIL, ACCOUNT, CONTAINER, PEOPLE_KEYS, MACHINE_KEYS, HIDDEN_KEYS, HIDDEN_REASONS, PROJECT_KEYS, FORMA_MAQUINA, DEPLOYMENT_PROVIDERS, DEPLOYMENT_SIDES, GITHUB_REPO, SEVERITIES, WORK_ITEM_KEYS, FINDINGS_KEYS, RESOLVE_AFTER_MIN, RESOLVE_AFTER_MAX, WORK_ITEM_RESERVED, parse, load, ownerFor, workItemFieldOk };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
@@ -724,5 +770,6 @@ if (require.main === module) {
   if (args.includes('--json')) process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
   else if (r.ok) process.stdout.write(`✅ ${file}: válido\n`);
   else for (const p of r.problems) process.stdout.write(`❌ ${p.path || '(el archivo)'}: ${p.message}\n`);
+  if (!args.includes('--json')) for (const ps of Object.values(r.sectionProblems || {})) for (const p of ps) process.stdout.write(`⚠️  ${p.path}: ${p.message} (la sección no se usa)\n`);
   process.exit(r.ok ? 0 : (r.couldNotRead ? 2 : 1));
 }

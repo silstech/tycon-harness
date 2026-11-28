@@ -120,6 +120,7 @@ function parseArgs(argv) {
     else if (v === '--pr-closed') a.prCerrado = argv[++i];
     else if (v === '--clear-rejection') a.quitarRechazo = true;
     else if (v === '--with-platform') a.conPlataforma = true;
+    else if (v === '--sources') a.fuentes = true;
     else if (v === '--decision-failed') a.decisionFallida = argv[++i];
     else if (v === '--json') a.json = true;
     else if (v === '--dry-run') a.dryRun = true;
@@ -629,6 +630,8 @@ function correr(a) {
   // las decisiones confirmadas en el sitio que otra persona aprobó, antes de mirar las fichas; a la
   // salida de error, para no romper la de --json
   if (!a.dryRun) for (const l of cycle.aplicarDecisiones({ fuente: 'dependencias', dir: a.pending, hoy }).lineas) console.error(l);
+  // los repos de una fuente se miden igual, pero su issue por hallazgo no se crea: se dice
+  for (const l of fuentesSinAviso(cfg)) console.error(l);
   const raiz = expandir(a.raiz || cfg.raiz_por_defecto || '~/SourceCode');
   const pres = cfg.presupuesto_de_ruido || {};
   const tope = Number.isInteger(pres.tope_pr_por_noche) ? pres.tope_pr_por_noche : 2;
@@ -1952,12 +1955,40 @@ function formaDeClon(r) {
   return RUTA_CLON.test(r.ruta) && !CODIFICADO.test(r.ruta) && (!repo || (REPO_CLON.test(repo) && !CODIFICADO.test(repo)));
 }
 
+/**
+ * Los problemas de la entrada `source` de un repo (`{ platform, …claves del repo }`: un repo de una fuente que la noche
+ * clona por la capa de plataforma), con el lector de team-repos.json. `[]` si está bien.
+ */
+function problemasDeFuente(r, i) {
+  return require('../../lib/team-repos.js').repoProblems(r.source, `repos[${i}].source`, { platforms: require('../../lib/team-repos.js').PLATFORMS });
+}
+
+/**
+ * Los repos con `source` de repos.json, cada uno con su aviso: el issue por hallazgo no se crea para ellos (los avisos
+ * van a la plataforma de los pedidos de trabajo, no a la de la fuente). El hallazgo sigue llegando a su ficha y al pedido
+ * de decisión del repo de operaciones.
+ */
+function fuentesSinAviso(cfg) {
+  return ((cfg && cfg.repos) || []).filter((r) => r && r.activo !== false && r.source && typeof r.source === 'object')
+    .map((r) => `⚠️ ${DEP_PROJECT.repoLabel(r)} es de una fuente (${r.source.platform}): el issue por hallazgo no se crea; su hallazgo va a la ficha y al pedido de decisión del repo de operaciones`);
+}
+
 function clones(a) {
   const cfg = leerJson(a.config, null);
   if (!cfg) { console.error(`error: no se pudo leer la configuración ${a.config}`); return 2; }
   const vistas = new Set();
   for (const [i, r] of (cfg.repos || []).entries()) {
     if (r.activo === false || !r.ruta || vistas.has(r.ruta)) continue;
+    // `--sources`: sólo las entradas con `source`, como `<ruta>\t<JSON de la fuente>` (las clona sources.js por la
+    // capa); sin la opción, esas entradas no van (las claves de siempre quedan como estaban)
+    if (!!a.fuentes !== !!r.source) continue;
+    if (a.fuentes) {
+      const malos = problemasDeFuente(r, i);
+      if (malos.length || !RUTA_CLON.test(r.ruta) || CODIFICADO.test(r.ruta)) { console.error(`⚠️ repos[${i}]: ${malos.map((p) => `${p.path}: ${p.message}`).join('; ') || '`ruta` fuera de forma'} — no se clona`); continue; }
+      vistas.add(r.ruta);
+      console.log(`${r.ruta}\t${JSON.stringify(r.source)}`);
+      continue;
+    }
     // el aviso nombra la entrada por su número: el texto de una entrada rara no se repite en el registro
     if (!formaDeClon(r)) { console.error(`⚠️ repos[${i}]: \`ruta\` o \`ado\` fuera de forma, no se clona`); continue; }
     vistas.add(r.ruta);
@@ -2124,7 +2155,7 @@ if (require.main === module) {
 // escribe con UN solo código, y el texto del Bug sale del mismo generador que el del pull request.
 module.exports = { huella, agruparHallazgos, agruparPresencias, proyectoDe, leerFicha, snapshotAnterior, parseArgs, ubicarRepo,
   listaDe, ponerLista, etiqueta, soloRepo, leerTodasLasFichas, leerPedidos, cuerpoDeFicha, aHtml, archivarIgnorados, vigilarFichas,
-  proyectoAzureDe, sinPropuesta,
+  proyectoAzureDe, sinPropuesta, fuentesSinAviso,
   // el cruce
   presenciaDeFicha, leerVolcado, cruzarPedidos, motivoParaNoIgnorar, CATEGORIAS_ABIERTAS, CATEGORIAS_CERRADAS,
   // GitHub

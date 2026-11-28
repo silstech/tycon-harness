@@ -70,7 +70,10 @@ test('Platform_OperationsList_MatchesContract @story-8.85 @ac-1', () => {
   const ops = C().OPERATIONS;
   // el lector de configuración guarda su copia de las áreas: tienen que ser las mismas del contrato
   assert.deepStrictEqual([...require(path.join(ROOT, 'scripts', 'lib', 'tycon-config.js')).AREAS_PLATAFORMA], [...C().AREAS]);
-  assert.strictEqual(ops.length, 15, 'las quince operaciones del dominio');
+  assert.strictEqual(ops.length, 17, 'las diecisiete operaciones del dominio');
+  // las dos de fuente (repos.list y repos.clone) no van por un área del perfil: las elige la plataforma de la fuente
+  assert.deepStrictEqual([...C().SOURCE_OPERATIONS], ['repos.list', 'repos.clone']);
+  for (const o of C().SOURCE_OPERATIONS) assert.strictEqual(C().areaOf(o), null, o);
   for (const n of ['azure-devops', 'github']) {
     const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'integrations', n, 'integration.json'), 'utf8'));
     assert.strictEqual(man.kind, 'platform', n);
@@ -215,7 +218,9 @@ test('Conformance_AzureAndGithub_DeclaredOps @story-8.85 @ac-6', async () => {
     // lo que no declara contesta no_soportado
     const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'integrations', plat, 'integration.json'), 'utf8'));
     for (const op of C().OPERATIONS.filter((o) => !man.operations.includes(o))) {
-      const x = await P().run(op, {}, { env: m.env, repo: plat === 'github' ? GH : AZ });
+      // una operación de fuente se elige por la fuente: la de la misma plataforma
+      const args = C().SOURCE_OPERATIONS.includes(op) ? { source: plat === 'github' ? { platform: 'github', org: 'acme' } : { platform: 'azure', org: 'acme', project: 'Producto' } } : {};
+      const x = await P().run(op, args, { env: m.env, repo: plat === 'github' ? GH : AZ });
       assert.strictEqual(x.reason, 'no_soportado', `${plat} ${op}`);
     }
   }

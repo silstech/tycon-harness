@@ -33,6 +33,13 @@
     }
   },
   "notify": { "channel": "slack" },
+  "nightly": {
+    "__doc": "Opcional: las fuentes cuyos repos mide la noche de GitHub Actions, con las claves del repo de su plataforma sin repo. Con la sección, METRICS_OWNERS se ignora. El token de cada plataforma va en el secreto HARNESS_SOURCE_CREDENTIALS; el de GitLab, con read_api y read_repository. Actualizá el sitio antes de declararla: una versión anterior rechaza la clave. Guía: pipelines/operations/github/README.md, punto 3.2.",
+    "sources": [
+      { "platform": "github", "org": "acme" },
+      { "platform": "gitlab", "host": "gitlab.acme.example", "namespace": "acme/productos" }
+    ]
+  },
   "deployments": {
     "provider": "azure",
     "products": {

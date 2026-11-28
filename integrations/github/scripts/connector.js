@@ -20,7 +20,8 @@ function leerDespliegues(args, ctx) {
   }
 }
 
-const OPERACIONES = { ...require('./work-items.js'), ...require('./change-requests.js'), ...require('./ci-queue.js'), ...require('./security-alerts.js'), 'deployments.read': leerDespliegues };
+const OPERACIONES = { ...require('./work-items.js'), ...require('./change-requests.js'), ...require('./ci-queue.js'), ...require('./security-alerts.js'), 'deployments.read': leerDespliegues,
+  'repos.list': require('./repos.js')['repos.list'], 'repos.clone': require('./repos.js')['repos.clone'] };
 
 function run(operacion, args, ctx) {
   const f = OPERACIONES[operacion];

@@ -4025,6 +4025,12 @@
       "requiere": []
     },
     {
+      "__nota": "La noche mide los repos de las fuentes de operations.json (nightly.sources): repos.list y repos.clone por la plataforma de la fuente, el conector de GitLab contra servidores https de laboratorio (la API v4 y git por http-backend, con certificado propio), sources.js (carpetas sin choque, índice, estado por fuente, máscaras, motivos), clone-repos.sh sin fuentes igual que hoy, el secreto sólo en el paso que clona, dependencias, paridad, métricas, tablero y guías.",
+      "raiz": "arnes",
+      "ruta": "tests/nightly-sources.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "El freno de pedidos juzga --delete-source-branch de un az repos pr update con la rama del pedido, que le pregunta al conector de la plataforma del repo (con el az de mentira).",
       "raiz": "arnes",
       "ruta": "tests/pr-update-source-branch.test.js",

@@ -1031,7 +1031,57 @@ function contexto() {
  * «Productos con producción al día» sobre los productos MEDIDOS (los «no medido» no cuentan como atrasados). Sin foto,
  * con una de más de dos días o sin ningún producto medido: «no medido» con el motivo, nunca 0. Pura: la usa la prueba.
  */
-function fichaDespliegues(doc, hoy) {
+function fichaDespliegues(doc, hoy, { sinLector = [] } = {}) {
+  const r = fichaDesplieguesDeLaFoto(doc, hoy);
+  // los productos cuya plataforma no tiene lector de despliegues: no medido, dicho, sin error
+  const faltan = sinLector.filter((n) => !(doc && doc.productos && doc.productos[n]));
+  if (!faltan.length || r.estado !== 'medido') return r;
+  return { ...r, detalle: [r.detalle, `${faltan.join(', ')}: no medido (su plataforma todavía no tiene lector de despliegues)`].filter(Boolean).join(' · ') };
+}
+
+/**
+ * Los productos de repos.json cuyos repos son todos de una fuente (`source`): la foto de despliegues no los lee, y el
+ * tablero los dice «no medido» en vez de omitirlos.
+ */
+function productosSinLectorDeDespliegues(repos) {
+  const por = new Map();
+  for (const r of Array.isArray(repos) ? repos : []) {
+    if (!r || !r.producto || r.activo === false) continue;
+    const de = por.get(r.producto) || { fuente: 0, otro: 0 };
+    if (r.source && typeof r.source === 'object') de.fuente++; else de.otro++;
+    por.set(r.producto, de);
+  }
+  return [...por].filter(([, x]) => x.fuente && !x.otro).map(([n]) => n).sort();
+}
+
+/**
+ * El estado de las fuentes de la noche (`nightly-sources-<día>.json`, de scripts/nightly/sources.js): una fila por
+ * fuente, medida, medida en parte o no medida, con su motivo. Sin archivo o con uno de más de dos días: «no medido».
+ */
+function fichaFuentes(doc, hoy) {
+  if (!doc || typeof doc !== 'object' || !Array.isArray(doc.fuentes)) return noMedida('no hay estado de las fuentes de la noche');
+  const edad = edadDias(doc.generado || doc.fecha, Date.parse(`${String(hoy).slice(0, 10)}T23:59:59Z`));
+  if (edad === null || edad > 2) return noMedida(`el estado de las fuentes es de ${String(doc.fecha || 'sin fecha').slice(0, 10)}: más de dos días`);
+  const fuentes = doc.fuentes.filter((f) => f && typeof f.fuente === 'string').map((f) => ({
+    fuente: f.fuente, estado: ['medida', 'en_parte', 'no_medida'].includes(f.estado) ? f.estado : 'no_medida',
+    motivo: typeof f.motivo === 'string' ? f.motivo : null, detalle: typeof f.detalle === 'string' ? f.detalle : null,
+    repos: Number.isInteger(f.repos) ? f.repos : null,
+  }));
+  return { estado: 'medido', fecha: String(doc.fecha || '').slice(0, 10), fuentes };
+}
+
+const ESTADO_FUENTE = { medida: 'medida', en_parte: 'medida en parte', no_medida: 'no medida' };
+/** Las filas de la tabla de las fuentes de la noche (vacío si no hay ninguna medida que mostrar). */
+function filasFuentes(f) {
+  if (!f || f.estado !== 'medido' || !f.fuentes.length) return '';
+  const filas = f.fuentes.map((x) => `<tr><td>${esc(x.fuente)}</td><td>${esc(ESTADO_FUENTE[x.estado])}</td><td>${x.repos === null ? '—' : x.repos}</td><td class="muted">${esc([x.motivo, x.detalle].filter(Boolean).join(': '))}</td></tr>`);
+  return `<details style="margin-top:10px" open><summary>Las fuentes de la noche (${esc(f.fecha)})</summary>
+    <table><tr><th>Fuente</th><th>Estado</th><th>Repos medidos</th><th>Motivo</th></tr>
+    ${filas.join('\n    ')}</table>
+  </details>`;
+}
+
+function fichaDesplieguesDeLaFoto(doc, hoy) {
   if (!doc || typeof doc !== 'object') return noMedida('no hay foto de despliegues de la noche');
   const edad = edadDias(doc.generado, Date.parse(`${String(hoy).slice(0, 10)}T23:59:59Z`));
   if (edad === null || edad > 2) return noMedida(`la foto de despliegues es de ${String(doc.generado || 'sin fecha').slice(0, 10)}: más de dos días`);
@@ -1137,7 +1187,10 @@ function detalleSinHistoria(m) {
 
 function extra(por, ctx, cfg) {
   const m = {};
-  m.despliegues = desde(por.deployments, (d) => fichaDespliegues(d, new Date(ahoraMs()).toISOString()));
+  m.despliegues = desde(por.deployments, (d) => fichaDespliegues(d, new Date(ahoraMs()).toISOString(), { sinLector: productosSinLectorDeDespliegues(ctx.repos) }));
+  // el estado de las fuentes de la noche: sólo si la noche las midió alguna vez (una organización sin fuentes no lo ve)
+  const fs0 = leerFuente({ id: 'nightly-sources', dir: '.', pattern: 'nightly-sources-*.json' });
+  m.fuentes = fs0.archivos ? fichaFuentes(fs0.leida ? fs0.doc : null, new Date(ahoraMs()).toISOString()) : null;
   m.edad_estado = fichaEdad(cfg, ctx);
   m.sin_historia = fichaSinHistoria(por['story-reference']);
   const sdlc = por['sdlc-stage'];
@@ -1823,6 +1876,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-si
     ${F('', 'Máquinas con una vuelta atrás vigente: no se actualizan solas', L.vueltas_atras, entero, {}, 'Con la actualización fijada por el equipo, <code>harness.js rollback</code> deja retenida la actualización de <b>esa</b> máquina hasta que sale una versión posterior a la que deshizo. El detalle dice cuál, qué versión deshizo y desde cuándo. Cada máquina lo declara una vez por día, con sus registros; la que sube con un arnés anterior sale «sin medir».')}
     ${F('', 'Despliegues: productos con producción al día', E.despliegues, entero, {}, 'Sale de la foto de despliegues de cada noche, leída del <b>stage</b> de cada ejecución: una ejecución «succeeded» con la aprobación vencida no cuenta como desplegada. Sobre los productos medidos; el detalle dice cuáles tienen producción atrasada y cuántas aprobaciones vencieron. Duración, cola y frecuencia de despliegues: story 2.11.')}
   </div>
+  ${E.fuentes && E.fuentes.estado !== 'medido' ? `<p class="chart-note">${chip('blind', 'no medido')} Las fuentes de la noche: ${esc(E.fuentes.motivo || '')}</p>` : filasFuentes(E.fuentes)}
   ${tablaPoda(P)}
   <details><summary>Detalle: las 6 métricas de revisores del capturador, con su cobertura</summary>
     <table><tr><th>Métrica</th><th>Mediana</th><th>Rango</th><th>Cobertura</th></tr>
@@ -1930,4 +1984,5 @@ function main() {
 
 if (require.main === module) main();
 module.exports = { fichaSinPipeline, colectar, encuentra, render, equipo, local, pasosPorCorrida, ratio, medida, noMedida, edadDias, estadoDelBuzon, selloDe, MOTIVOS_BUZON, fichaDespliegues, fichaVueltasAtras,
+  fichaFuentes, filasFuentes, productosSinLectorDeDespliegues,
   DENOMINADORES: require('./common').DENOMINADORES };

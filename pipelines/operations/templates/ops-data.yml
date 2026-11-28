@@ -105,3 +105,12 @@ steps:
     displayName: 'Los datos y la configuración de la organización: traerlos de operaciones y guardar ahí'
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  # Las fuentes de `nightly.sources` en operations.json las mide la noche que las lee; ésta todavía no: lo avisa nombrando
+  # cada fuente, para que nadie crea que se midieron. Nunca frena.
+  - script: |
+      set -uo pipefail
+      S="$(Build.SourcesDirectory)"
+      [ -f "$S/operations.json" ] || exit 0
+      node "$S/scripts/nightly/sources.js" skipped --operations "$S/operations.json" --format vso || echo "##vso[task.logissue type=warning]no pude leer nightly.sources de operations.json"
+    displayName: 'Las fuentes de nightly.sources: esta noche no las mide (aviso)'

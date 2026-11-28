@@ -154,7 +154,8 @@ En el repo de operaciones, *Settings → Secrets and variables → Actions*:
 | Secreto | `HARNESS_APP_PRIVATE_KEY` | La llave privada de la App: el contenido entero del archivo `.pem`, con sus líneas `-----BEGIN` y `-----END` |
 | Secreto | `HARNESS_ORG_TOKEN` | Sólo con el usuario de máquina (punto 1.2): su token. Si están la App y este secreto, gana la App |
 | Variable | `HARNESS_REF` | La rama, el tag o el commit del arnés que corre cada noche. Vacía: `main`, igual que las máquinas de los devs. Quien quiera fijar una versión pone acá un tag o un commit, y lo sube a conciencia: cada noche el arnés corre con la credencial de tu organización |
-| Variable | `METRICS_OWNERS` | Los dueños cuyos repos miden las métricas, separados por `;`. Vacía: el dueño de este repo |
+| Variable | `METRICS_OWNERS` | Los dueños cuyos repos miden las métricas, separados por `;`. Vacía: el dueño de este repo. Con `nightly.sources` en `operations.json` se ignora, y la noche lo avisa (punto 3.2) |
+| Secreto | `HARNESS_SOURCE_CREDENTIALS` | Sólo con fuentes de otras plataformas (punto 3.2): un JSON `{ "<plataforma>": "<token>" }`, por ejemplo `{ "gitlab": "glpat-…" }`. Entra sólo en el paso que lista y clona |
 | Variable | `METRICS_REPO_PREFIX` | Si la organización mezcla repos de otros equipos: sólo los que empiezan así |
 | Variable y secreto | `TYCON_TELEGRAM_CHAT_ID` y `TELEGRAM_BOT_TOKEN` | El resumen diario de dependencias, si el canal es `telegram`. Usá un bot dedicado al aviso |
 | Secretos | `TYCON_SLACK_WEBHOOK_URL` y `TYCON_TEAMS_WEBHOOK_URL` | El resumen diario, si se eligió `slack` o `teams`: la dirección del webhook entrante de cada uno. La dirección ES la credencial. `TYCON_NOTIFY_WEBHOOK_URL` es el nombre de antes, de cuando había un solo canal: sigue valiendo |
@@ -200,6 +201,44 @@ pide para sí `contents: write` (para guardar en este repo) y nada más. Si `mai
 protección, el token del workflow tiene que poder empujar ahí (o los guardados salen en rojo). Si la organización
 restringe qué acciones se pueden usar, permití `actions/checkout`, `actions/setup-node`, `actions/setup-dotnet`, `actions/setup-python` (sólo la usa
 si algún repo es pip) y `actions/create-github-app-token` (van fijadas por el commit).
+
+### 3.2 Los productos en otra plataforma: las fuentes de la noche (`nightly.sources`)
+
+Si los productos de la organización viven en GitLab (o parte en GitHub y parte en GitLab), la noche los mide igual sin
+moverlos: se declara cada **fuente**, un dueño de GitHub o un grupo de GitLab, en `operations.json`:
+
+```json
+"nightly": { "sources": [
+  { "platform": "github", "org": "acme" },
+  { "platform": "gitlab", "namespace": "acme/productos" },
+  { "platform": "gitlab", "host": "gitlab.acme.example", "namespace": "plataforma" }
+] }
+```
+
+Cada fuente lleva las claves del repo de su plataforma, sin `repo`: en GitHub, `org`; en GitLab, `namespace` (el grupo,
+con sus subgrupos separados por `/`) y `host` si es una instalación propia (sin `host`, gitlab.com). De un grupo de
+GitLab se miden sus proyectos y los de todos sus subgrupos, menos los archivados.
+
+**Primero se actualiza el sitio, después se declara la sección.** Un sitio o una noche con una versión anterior del
+arnés no conocen `nightly` y rechazan el archivo entero por «clave desconocida».
+
+**El token.** Para GitLab, un token de acceso (personal, de grupo o de proyecto) con los alcances **`read_api`** y
+**`read_repository`**, y nada más: la noche sólo lee. Va en el secreto `HARNESS_SOURCE_CREDENTIALS`, un JSON con una
+entrada por plataforma: `{ "gitlab": "glpat-…" }`. Las fuentes de GitHub siguen usando la App o el usuario de máquina
+(punto 1). Cada entrada del secreto se enmascara en el registro apenas se lee, y el secreto entra sólo en el paso que
+lista y clona: nunca en el que corre código de los productos.
+
+**Lo que cambia.** Con fuentes declaradas, las métricas recorren esas fuentes y no las de `METRICS_OWNERS` (la variable
+se ignora y la corrida lo avisa). Cada fuente queda **medida**, **medida en parte** (un repo declarado en `repos.json` o
+en `team-repos.json` que la fuente no devolvió, o uno que no se pudo clonar: los demás se miden igual) o **no medida**,
+con su motivo («cargá el token», «renovalo», el grupo que no existe), y el tablero muestra una fila por fuente. Cero
+repos en una fuente es un aviso, nunca un verde mudo. En la revisión de dependencias, un repo de otra plataforma se
+declara en `repos.json` con `"source": { "platform": "gitlab", "namespace": "…", "repo": "…" }`.
+
+**Lo que todavía no hace.** Los avisos de dependencias de un repo de GitLab no se crean como issues de GitLab (piden un
+token que escribe): su hallazgo llega a la ficha y al pull request de decisión de este repo, y la corrida lo dice. La
+paridad de un repo de GitLab sale «no medido», y también su foto de despliegues. La noche de Azure DevOps no mide estas
+fuentes todavía: si `operations.json` las declara, lo avisa nombrando cada una.
 
 ### 3.1 El pull request por hallazgo
 

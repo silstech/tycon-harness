@@ -235,6 +235,24 @@ controles que no terminan a tiempo son `no_medido`, nunca «entró».
 | `branch-rules.read` | opcional `branch` (si no, la rama principal del repo) | `branch` y `approval`: la regla de aprobación mínima de esa rama (`enabled`, `blocking`, `minimum`, `creatorVoteCounts`, `resetOnSourcePush`), o `null` si no tiene; con varias, la que menos le falta |
 | `security-alerts.list` | nada | las alertas abiertas del análisis de seguridad en la rama principal del repo: `number`, `rule`, `severity`, `path`, `line`, `createdAt`; un repo sin análisis es `no_soportado`. La lee el aviso de pedidos trabados: el chequeo de antes de encolar mira las referencias del pedido, y una alerta que aparece recién en main no la ve |
 
+### Los repos de una fuente (la noche)
+
+Las dos operaciones de fuente no van por el repo actual ni por un área del perfil: las elige la plataforma de la fuente
+que se les pasa (`source.platform`). Las pide el paso común de la noche (`scripts/nightly/sources.js`) por cada fuente
+de `operations.json → nightly.sources`, con el token de esa plataforma en `credential` (del secreto
+`HARNESS_SOURCE_CREDENTIALS`; cada conector recibe sólo el suyo).
+
+| Operación | Recibe | Devuelve en `value` |
+|---|---|---|
+| `repos.list` | `source` (`platform` y las claves del repo de esa plataforma sin `repo`: el dueño o el grupo) y `credential` | los repos de la fuente: `[{ id, name, archived }]`, con `id` el que recibe el clon. Una página que falla o un tope alcanzado es `no_medido`, nunca una lista más corta |
+| `repos.clone` | `source`, `credential`, `id`, `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano) o `depth` (la profundidad del clon completo) | `{ dir }`; `{ dir: null, empty: true }` si el repo está vacío. Los patrones y la profundidad los pone el núcleo; el conector pone sólo la dirección y la credencial, y ningún `.git/config` queda con ella |
+
+Un conector que las atiende enmascara cada cabecera que arma (`::add-mask::`) en la salida del paso antes de usarla —
+nunca en una salida que alguien captura, porque esa máscara no le llega a GitHub— y no sigue redirecciones con la
+credencial. Los motivos son los del contrato: sin token, `sin_credencial`; 401 o 403, `rechazado`; un grupo que no
+existe, `no_encontrado`; la red, `red`; lo demás, `no_medido`. El de GitHub reusa la App o el usuario de máquina
+(`ORG_TOKEN`) si la fuente no trae credencial; el de GitLab habla HTTP directo con la API v4, sin glab.
+
 Lo que le falta a una regla de aprobación lo decide el contrato (`approvalFaults`): sirve la que está prendida, frena,
 pide al menos una aprobación, cuenta el voto de quien abrió el pedido y borra las aprobaciones con cada empuje nuevo. Lo
 usa `scripts/tools/branch-approval.js`, que relee la regla al terminar el alta de un producto y que `harness.js doctor
