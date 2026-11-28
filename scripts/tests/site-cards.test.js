@@ -438,7 +438,9 @@ test('2.36-Sello_CompletoComoElAviso: el sello de Arnés dice «completa» con l
     const m = sources.construirDesdeClon(clon, { ahora: AHORA });
     return views.filasArnes(m, { ahora: AHORA }).find((l) => l.clave === 'sello').texto;
   };
-  assert.strictEqual(conSello(base), `${HOY} · completa`);
+  // el día del sello viaja con su marca de momento: la página lo dice en la hora de quien mira
+  const W = require(path.join(H.SITE, 'when.js'));
+  assert.strictEqual(W.conMomentos(conSello(base)), `${W.momento(`${HOY}T06:00:00Z`, { forma: 'fecha' })} · completa`);
   assert.match(conSello({ ...base, fuentes: { esperadas: 3, al_dia: 2 } }), /incompleta/, 'una fuente atrasada');
   assert.match(conSello({ ...base, buzon: { estado: 'no_leido', motivo: 'sin buzón' } }), /incompleta/, 'el buzón sin leer');
   assert.match(conSello({ ...base, modo: 'local', corrida: null, buzon: { estado: 'no_aplica' } }), /incompleta/, 'una página local');

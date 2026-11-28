@@ -98,7 +98,7 @@ test('T27 Sitio_SinArchivo_NoMedido @story-8.209 @ac-17', () => {
   assert.match(html, /no medido/);
   assert.match(html, /1 máquina sin medir/);
   // un día sin ninguna máquina medida: el total dice «no medido», no cero
-  assert.match(html, /<th scope="row">2026-11-07<\/th>(?:<td class="no-medido">no medido<\/td>){2}<td class="total"><div>no medido<\/div><div>2 máquinas sin medir<\/div><\/td>/);
+  assert.match(html, /<th scope="row">7 nov 2026<\/th>(?:<td class="no-medido">no medido<\/td>){2}<td class="total"><div>no medido<\/div><div>2 máquinas sin medir<\/div><\/td>/);
 });
 
 test('T28 Sitio_TokensNoMedidos_ConMotivo @story-8.209 @ac-17', () => {
@@ -232,7 +232,7 @@ test('T48 Total_SinHorasMedidas_NoEsCero @story-8.209 @ac-17', () => {
   const sinHoras = { medido: false, motivo: 'el gancho de estado no anotó ese día (apagado o sin instalar)' };
   const j = WD().leerJornadas(espejo({ 'maquina-a': { '2026-11-09': dia('2026-11-09', { horas: sinHoras }) }, 'maquina-b': { '2026-11-09': dia('2026-11-09', { horas: sinHoras }) } }));
   const t = WD().armarTabla(j, { ayer: '2026-11-09' });
-  const fila = WD().htmlTabla(t, 'es').split('<tr>').find((r) => r.includes('2026-11-09'));
+  const fila = WD().htmlTabla(t, 'es').split('<tr>').find((r) => r.includes('9 nov 2026'));
   const total = fila.slice(fila.indexOf('class="total"'));
   assert.doesNotMatch(total, /0\.0 h/);
   assert.match(total, /horas no medidas/i);
@@ -536,7 +536,7 @@ test('A102-A104 Horas_LoQueNoSeMidioDiceQuéYPorQué', () => {
   })), { ayer: '2026-11-09' });
   const tabla = WD().htmlTabla(t, 'es');
   assert.match(tabla, /tokens no medidos: una conversación no se pudo leer/, 'el motivo, a la vista');
-  const fila8 = tabla.split('<th scope="row">2026-11-08</th>')[1].split('</tr>')[0];
+  const fila8 = tabla.split('<th scope="row">8 nov 2026</th>')[1].split('</tr>')[0];
   assert.doesNotMatch(fila8, /máquina sin medir/, 'tiene horas: no es una máquina sin medir');
   assert.match(fila8, /1 máquina sin tokens medidos/);
   // una máquina con dueño y otra sin: la que no tiene persona no se presenta como persona
@@ -601,8 +601,10 @@ test('A123 Horas_LasFechasNoSeParten_YDiaPorDiaComoLosGraficos', () => {
   const t = WD().armarTabla(WD().leerJornadas(espejo({ 'maquina-a': Object.fromEntries(DIAS5.map((d) => [d, dia(d)])) })), { ayer: '2026-11-09' });
   const r = WD().resumen(t, {});
   const html = WD().htmlDiaPorPersona(t, r, 'es');
-  assert.match(html, /<th>09\/11<\/th>/, 'el día como en los gráficos: día/mes');
-  assert.doesNotMatch(html, /<th>11-09<\/th>/);
+  // el formato único del sitio, el mes en letras: «09/11» en inglés se lee como el 11 de septiembre
+  assert.match(html, /<th>9 nov<\/th>/, 'el día como en los gráficos, con el mes en letras');
+  assert.doesNotMatch(html, /<th>(?:11-09|09\/11)<\/th>/);
+  assert.match(WD().htmlDiaPorPersona(t, r, 'en'), /<th>Nov 9<\/th>/, 'en inglés, el mes primero y en letras');
   const css = fs.readFileSync(path.join(SITE, 'static', 'site.css'), 'utf8');
   assert.match(css, /table\.horas th\[scope="?row"?\][^{]*\{[^}]*white-space:nowrap/, 'la fecha de cada fila no se parte');
 });

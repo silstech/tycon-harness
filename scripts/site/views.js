@@ -19,6 +19,8 @@ const { esc, chip, umbralValido, claveDeProducto } = require('../nightly/dashboa
 const fichasDelTablero = require('./tabs/cards.js');
 const { compare: compararVersiones } = require('../setup/harness/version-order.js');
 const { t, TEXTOS } = require('./texts.js');
+// los momentos de las páginas, en la hora de quien mira: el texto lleva una marca y layout() la cambia por <time>
+const W = require('./when.js');
 /** El nombre de una fuente de la noche en un idioma; una fuente que la tabla no conoce sale con su id. */
 const nombreDeFuente = (id, idioma) => (Object.prototype.hasOwnProperty.call(TEXTOS, `fuente.${id}`) ? t(idioma, `fuente.${id}`) : id);
 const { IDIOMAS, POR_DEFECTO, valido } = require('./language.js');
@@ -35,9 +37,6 @@ function hora(marca, idioma = POR_DEFECTO) {
   const d = new Date(typeof marca === 'number' ? marca : Date.parse(marca || ''));
   return Number.isFinite(d.getTime()) ? `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC` : t(idioma, 'vista.sinHora');
 }
-
-/** «HH:MM UTC» de una marca en milisegundos. */
-const horaCorta = (ms) => `${new Date(ms).toISOString().slice(11, 16)} UTC`;
 
 /** Los códigos de estado de la lista cerrada y de los propios de una fuente: su frase vive en la tabla. */
 const CODIGOS = ['sin_red', 'sin_permiso', 'credencial_rechazada', 'parcial', 'cargando', 'fuente_vieja', 'sin_configurar', 'sin_foto', 'ilegible',
@@ -295,16 +294,18 @@ function filasArnes(m, { ahora = Date.now(), version = null, ultima = null, idio
   lineas.push({ clave: 'examen', titulo: T('arnes.examen'), estado: medida(e) ? 'medido' : 'no_medido', texto: medida(e) ? `${T(Number(e.fallos) === 1 ? 'arnes.examenFallos1' : 'arnes.examenFallos', { fecha: e.fecha, n: Number(e.fallos) || 0 })}${e.completo === false ? T('arnes.examenIncompleto') : ''}` : sinMedir(e) });
   const tb = m.tablero;
   const sello = medida(tb) && tb.sello ? tb.sello : null;
-  lineas.push({ clave: 'sello', titulo: T('arnes.sello'), estado: sello ? 'medido' : 'no_medido', texto: sello ? `${String(sello.generado || '').slice(0, 10)} · ${T(sello.completo ? 'arnes.completa' : 'arnes.incompleta')}` : cf(tb) });
+  lineas.push({ clave: 'sello', titulo: T('arnes.sello'), estado: sello ? 'medido' : 'no_medido', texto: sello ? `${W.marcaSiTieneHora(sello.generado, 'fecha') || String(sello.generado || '').slice(0, 10)} · ${T(sello.completo ? 'arnes.completa' : 'arnes.incompleta')}` : cf(tb) });
   lineas.push({ clave: 'version', titulo: T('arnes.version'), estado: version ? 'medido' : 'no_medido', texto: version || T('arnes.sinVersion') });
   // la última publicada: nunca «al día» sin haber mirado
   if (ultima) {
     // contra qué se compara (el canal estable) y cuándo se miró; la fecha es la de la imagen armada, no la de la
     // versión, y sin la hora en que se miró no se dice nada de cuándo
     if (ultima.estado === 'medido') {
+      // las dos fechas viajan como marcas que layout() cambia por <time>, en la hora de quien mira; sin la hora en que
+      // se miró, la frase no la nombra
       lineas.push({ clave: 'ultima', titulo: T('arnes.ultima'), estado: 'medido', texto: T('arnes.ultimaMirada', { version: ultima.version,
-        armada: ultima.creada ? T('arnes.ultimaArmada', { fecha: String(ultima.creada).slice(0, 10) }) : '',
-        mirada: Number.isFinite(ultima.mirado) ? T('arnes.ultimaMiradaA', { hora: horaCorta(ultima.mirado) }) : '' }) });
+        armada: ultima.creada ? T('arnes.ultimaArmada', { fecha: W.marcaSiTieneHora(ultima.creada, 'fecha') }) : '',
+        mirada: Number.isFinite(ultima.mirado) ? T('arnes.ultimaMiradaA', { hora: W.marca(ultima.mirado, 'hora') }) : '' }) });
     }
     else {
       // el motivo es de la lista cerrada de latest-release.js: se dice en el idioma de la página
@@ -327,7 +328,7 @@ function tile(f, idioma) {
   // lo que sólo se sigue no lleva el rombo ni el amarillo de lo que hay que decidir: el estado neutro, con su propia marca
   const est = f.valor > 0 ? (f.seguimiento ? 'neutro' : 'warn') : 'ok';
   // de cuándo es la cuenta: al momento (la de Mantenimiento), leída recién (las máquinas) o de la noche
-  const cuando = f.alMomento ? T('vista.alMomento') : Number.isFinite(f.leido) ? T('vista.leido', { hora: horaCorta(f.leido) }) : f.fecha ? T('vista.deLaNocheDel', { fecha: f.fecha }) : null;
+  const cuando = f.alMomento ? T('vista.alMomento') : Number.isFinite(f.leido) ? T('vista.leido', { hora: W.marca(f.leido, 'hora') }) : f.fecha ? T('vista.deLaNocheDel', { fecha: f.fecha }) : null;
   return `<div class="tile ${est}">${chip(est, T(f.valor > 0 ? (f.seguimiento ? 'vista.seguimiento' : 'vista.decidir') : 'vista.nada'))}<div class="t-label">${esc(f.titulo)}</div><div class="t-val">${esc(f.valor)}</div>${cuando ? `<div class="t-den">${esc(cuando)}</div>` : ''}${f.detalle ? `<div class="t-den">${esc(f.detalle)}</div>` : ''}${pie}</div>`;
 }
 
@@ -397,8 +398,8 @@ function layout(ctx, titulo, cuerpo, lede = null) {
   const tokSesion = ctx && ctx.sesion && typeof ctx.sesion.tok === 'string' ? ctx.sesion.tok : '';
   const sesion = cuenta ? `<form class="salir" method="post" action="/auth/logout"><span>${esc(cuenta)}</span> <input type="hidden" name="tok" value="${esc(tokSesion)}"> <button type="submit">${esc(T('barra.salir'))}</button></form>` : '';
   const bandas = [
-    ctx && ctx.bandaConfig ? banda(T('banda.config', { desde: hora(ctx.bandaConfig.desde, idioma), motivo: ctx.bandaConfig.motivo })) : '',
-    ctx && ctx.bandaRefresco ? banda(T('banda.refresco', { desde: hora(ctx.bandaRefresco.desde, idioma), motivo: fraseDeCodigo(ctx.bandaRefresco.estado, idioma) || ctx.bandaRefresco.estado })) : '',
+    ctx && ctx.bandaConfig ? banda(T('banda.config', { desde: W.marca(ctx.bandaConfig.desde) || hora(ctx.bandaConfig.desde, idioma), motivo: ctx.bandaConfig.motivo })) : '',
+    ctx && ctx.bandaRefresco ? banda(T('banda.refresco', { desde: W.marca(ctx.bandaRefresco.desde) || hora(ctx.bandaRefresco.desde, idioma), motivo: fraseDeCodigo(ctx.bandaRefresco.estado, idioma) || ctx.bandaRefresco.estado })) : '',
     ctx && ctx.avisoVariable ? banda(T('banda.variable')) : '',
     ctx && ctx.avisoEtiqueta ? banda(T('banda.etiqueta')) : '',
     ctx && ctx.avisoSesiones ? banda(T('banda.sesiones')) : '',
@@ -411,7 +412,7 @@ function layout(ctx, titulo, cuerpo, lede = null) {
   // el pie: la versión que corre, su licencia, sus créditos y de quién es el sitio
   const pie = `<footer class="pie"><span>${esc(T('barra.producto'))}${ctx && ctx.version ? ` v${esc(ctx.version)}` : ''}</span><a href="/licencia">${esc(T('pie.licencia'))}</a><a href="/creditos">${esc(T('pie.creditos'))}</a><span class="esp"></span>${m.nombre ? `<span>© ${esc(m.nombre)}</span>` : ''}</footer>`;
   const pieLateral = `<div class="side-foot"><span class="lab-tema">${esc(T('barra.tema'))}</span>${selectorDeTema(idioma)}<span class="lab-tema">${esc(T('barra.idioma'))}</span>${selectorDeIdioma(idioma, rutaDe(ctx))}</div>`;
-  return `<!doctype html><html lang="${idioma}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${recargar}<title>${esc(titulo)} · ${esc(T('barra.lema'))}</title><link rel="stylesheet" href="/static/site.css"><script src="/static/site.js"></script></head><body>${barra}<div class="shell"><aside class="side">${nav}${pieLateral}</aside><main><header class="s-head"><div><h1>${esc(titulo)}</h1>${lede ? `<p>${esc(lede)}</p>` : ''}</div></header>${bandas}${cuerpo}${pie}</main></div></body></html>`;
+  return W.conMomentos(`<!doctype html><html lang="${idioma}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${recargar}<title>${esc(titulo)} · ${esc(T('barra.lema'))}</title><link rel="stylesheet" href="/static/site.css"><script src="/static/site.js"></script></head><body>${barra}<div class="shell"><aside class="side">${nav}${pieLateral}</aside><main><header class="s-head"><div><h1>${esc(titulo)}</h1>${lede ? `<p>${esc(lede)}</p>` : ''}</div></header>${bandas}${cuerpo}${pie}</main></div></body></html>`);
 }
 
 function seccion(titulo, html, aparte = null, id = null) { return `<section class="q"${id ? ` id="${esc(id)}"` : ''}><div class="q-head"><h2>${esc(titulo)}</h2>${aparte ? `<span class="aside">${esc(aparte)}</span>` : ''}</div>${html}</section>`; }
@@ -617,7 +618,7 @@ function paginaProyectos(ctx) {
   const celdaDep = (d) => {
     if (d.estado === 'no_medido') return `<td class="nm" colspan="3">${noMedido(d.motivo)}</td>`;
     // la fecha no parte renglón: en una columna angosta se partiría en dos
-    const fecha = (x) => (x && x.fecha ? `<span class="fecha">${esc(String(x.fecha).slice(0, 10))}</span>` : '—');
+    const fecha = (x) => (x && x.fecha ? `<span class="fecha">${esc(W.marcaSiTieneHora(x.fecha, 'fecha') || String(x.fecha).slice(0, 10))}</span>` : '—');
     const atraso = d.produccion ? T('proyectos.atrasoSinComparar') : T('proyectos.atrasoSinProduccion');
     const prod = `${fecha(d.produccion)}${d.produccion_atrasada === true ? ` · <b>${esc(T('proyectos.atrasada'))}</b>` : (d.produccion_atrasada === null ? ` · ${esc(atraso)}` : '')}`;
     const ea = d.aprobacion && typeof d.aprobacion === 'object' ? d.aprobacion.estado : d.aprobacion;
@@ -746,7 +747,7 @@ const paginaSaliste = (ctx = {}) => {
   ].join(''));
 };
 const paginaSinMantenedores = (ctx) => layout({ quien: ctx.quien, sesion: ctx.sesion, idioma: idiomaDe(ctx), url: ctx.url }, t(idiomaDe(ctx), 'sinMantenedores.titulo'), `<p class="lede">${esc(t(idiomaDe(ctx), 'sinMantenedores.texto'))}</p>`);
-const paginaFrenado = ({ desde, idioma = POR_DEFECTO, url = null }) => layout({ idioma, url }, t(idioma, 'frenado.titulo'), `<p class="lede">${esc(t(idioma, 'frenado.texto', { desde: hora(desde, idioma) }))}</p>`);
+const paginaFrenado = ({ desde, idioma = POR_DEFECTO, url = null }) => layout({ idioma, url }, t(idioma, 'frenado.titulo'), `<p class="lede">${esc(t(idioma, 'frenado.texto', { desde: W.marca(desde) || hora(desde, idioma) }))}</p>`);
 // se recarga sola cada 5 segundos hasta que el sitio tenga lo que necesita
 const paginaCargando = (ctx = {}) => layout({ ...ctx, recargar: 5 }, t(idiomaDe(ctx), 'cargando.titulo'), `<p class="lede">${esc(t(idiomaDe(ctx), 'cargando.texto'))}</p>`);
 

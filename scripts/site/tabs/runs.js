@@ -60,6 +60,10 @@ const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
 // el código de un error, con forma de código: nunca su mensaje (trae rutas del disco)
 const codigoDe = (e) => { const c = e && (e.code || e.codigo); return typeof c === 'string' && /^[A-Z0-9_]{1,40}$/.test(c) ? c : 'ERROR'; };
 const hora = (iso) => String(iso || '').slice(0, 16).replace('T', ' ');
+const W = require('../when.js');
+// un texto de la tabla con un momento adentro, en la hora de quien mira: el texto se escapa y el momento entra como su
+// etiqueta <time> (sin un instante que se lea, queda la hora tal como vino)
+const MARCA_MOMENTO = '\u0000momento\u0000';
 
 /**
  * La huella del espejo: nombre, tamaño y fecha de cada archivo hasta dos niveles (`<máquina>/<archivo>`), y del umbral
@@ -538,6 +542,8 @@ function crearRutas({ cfg, fuentes, version = null, skillsDir = null, armar, dem
   const pagina = (ctx, cuerpo, status = 200, extra) => ({ status, tipo: 'text/html; charset=utf-8', cuerpo: views.layout(ctx, tx(idiomaDe(ctx), 'pestana.corridas'), cuerpo, tx(idiomaDe(ctx), 'corridas.lede')), ...(extra ? { extra } : {}) });
   const gris = (ctx, t) => `<div class="tile blind"><div class="t-label">${runsEsc(tx(idiomaDe(ctx), 'pestana.corridas'))}</div><div class="t-val">${runsEsc(tx(idiomaDe(ctx), 'corridas.falta'))}</div><div class="t-den">${runsEsc(t)}</div></div>`;
   const runsEsc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const conMomento = (idioma, clave, valores, nombre, iso) => runsEsc(tx(idioma, clave, { ...valores, [nombre]: MARCA_MOMENTO }))
+    .replace(MARCA_MOMENTO, () => W.momento(iso) || runsEsc(hora(iso)));
 
   /**
    * ¿Hay algo por esperar? Un armado en curso, una pasada que cortó y ya sigue, o la bajada todavía no entera con la
@@ -646,8 +652,8 @@ function crearRutas({ cfg, fuentes, version = null, skillsDir = null, armar, dem
         const llave = `pagina\0${idioma}\0${r.error ? `${r.error.codigo}\0${r.error.desde}` : ''}\0${conBandaGuardada ? 'guardada' : ''}`;
         if (r.salidas[llave]) return pagina(marco, r.salidas[llave]);
         const opts = { sitio: { rol: ctx.quien.rol, version }, idioma };
-        const rearmado = r.error ? `<div class="banda gris"><b>${runsEsc(tx(idioma, 'corridas.rearmado', { desde: hora(r.error.desde), codigo: r.error.codigo }))}</b>${runsEsc(tx(idioma, 'corridas.rearmadoSeMuestra', { generado: hora(V.generado) }))}</div>`
-          : conBandaGuardada ? `<div class="banda gris"><b>${runsEsc(tx(idioma, 'corridas.guardada', { generado: hora(r.guardada.generado) }))}</b></div>` : '';
+        const rearmado = r.error ? `<div class="banda gris"><b>${conMomento(idioma, 'corridas.rearmado', { codigo: r.error.codigo }, 'desde', r.error.desde)}</b>${conMomento(idioma, 'corridas.rearmadoSeMuestra', {}, 'generado', V.generado)}</div>`
+          : conBandaGuardada ? `<div class="banda gris"><b>${conMomento(idioma, 'corridas.guardada', {}, 'generado', r.guardada.generado)}</b></div>` : '';
         // las fichas de Corridas del tablero nocturno (de la organización: sólo quien mantiene), entre el resumen y la
         // tabla; salen del mismo modelo de fichas que Arnés y Proyectos. Sin fichas todavía (el primer refresco), lo dice como
         // Arnés; vacía sólo si se ocultaron todas desde Configuración

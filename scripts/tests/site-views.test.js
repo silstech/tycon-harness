@@ -254,7 +254,8 @@ test('T13 2.36-Arnes_SinEnlaceConSello @story-2.36 @ac-9 — Arnés no enlaza la
   const modelo = modeloCompleto({ tablero: leida({ sello: { generado: `${HOY}T06:00:00Z`, completo: true } }) });
   const html = views.paginaArnes({ modelo: access.filtrar(modelo, { rol: 'maintainer' }, access.crearReglas({})), quien: { rol: 'maintainer', email: LEAD }, pestanas: [], ahora: AHORA });
   assert.doesNotMatch(html, /\/arnes\/tablero/, 'sin enlace a la página vieja');
-  assert.match(html, new RegExp(`${HOY} · completa`), 'el sello dice si el nocturno corrió, con su fecha');
+  // la fecha del sello va en la hora de quien mira: el instante viaja en <time>, con el día en UTC como texto de reserva
+  assert.match(html, new RegExp(`data-forma="fecha">${HOY} UTC</time> · completa`), 'el sello dice si el nocturno corrió, con su fecha');
   assert.strictEqual(views.tableroServido, undefined, 'la vista que servía la página ya no existe');
 });
 
@@ -579,7 +580,13 @@ test('T4 2.79-Vulnerabilidades_CadaCuentaDiceQueCuenta @story-2.79 @ac-4 — Ini
 test('T14 2.79-Arnes_UltimaPublicada_DiceCuandoSeMiro @story-2.79 @ac-12 — «stable (mirada HH:MM)»', async () => {
   const ultima = { estado: 'medido', version: '2026.10.15.3', creada: '2026-10-14T20:00:00Z', mirado: Date.parse('2026-10-15T09:41:00Z') };
   const l = views.filasArnes({}, { version: '2026.10.15.1', ultima }).find((x) => x.clave === 'ultima');
-  assert.match(l.texto, /^2026\.10\.15\.3 · imagen armada el 2026-10-14 · la más nueva del canal estable \(mirada a las 09:41 UTC\)$/);
+  // los dos momentos viajan como marcas que layout() cambia por <time>, en la hora de quien mira
+  const W = require(path.join(__dirname, '..', 'site', 'when.js'));
+  assert.strictEqual(l.texto, `2026.10.15.3 · imagen armada el ${W.marca('2026-10-14T20:00:00Z', 'fecha')} · la más nueva del canal estable (mirada a las ${W.marca(Date.parse('2026-10-15T09:41:00Z'), 'hora')})`);
+  assert.strictEqual(W.conMomentos(l.texto), `2026.10.15.3 · imagen armada el ${W.momento('2026-10-14T20:00:00Z', { forma: 'fecha' })} · la más nueva del canal estable (mirada a las ${W.momento('2026-10-15T09:41:00Z', { forma: 'hora' })})`);
+  // sin la hora en que se miró, la frase no la nombra
+  const sinHora = views.filasArnes({}, { version: '2026.10.15.1', ultima: { ...ultima, mirado: null } }).find((x) => x.clave === 'ultima');
+  assert.strictEqual(sinHora.texto, `2026.10.15.3 · imagen armada el ${W.marca('2026-10-14T20:00:00Z', 'fecha')} · la más nueva del canal estable`);
   // la vigía guarda cuándo miró y lo devuelve con lo medido
   const LR = require(path.join(H.SITE, 'latest-release.js'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultima-'));
@@ -653,7 +660,7 @@ test('T20 2.79-Inicio_MaquinasSinConfirmar_Cargando_NoDiceNoMedido @story-2.79 @
   assert.doesNotMatch(t, /no medido|buzón/i);
   assert.match(cargando, /<meta http-equiv="refresh" content="\d+">/, 'Inicio se recarga sola mientras carga');
   const leido = pagina(modeloCompleto({ generado: Date.parse('2026-10-15T11:58:00Z') }));
-  assert.match(tarjetaDe(leido, 'Máquinas por confirmar con ejecuciones'), /leído 11:58 UTC/);
+  assert.match(tarjetaDe(leido, 'Máquinas por confirmar con ejecuciones'), /leído <time datetime="2026-10-15T11:58:00\.000Z" data-forma="hora">11:58 UTC<\/time>/);
   assert.doesNotMatch(leido, /<meta http-equiv="refresh"/, 'leído, ya no se recarga');
 });
 
@@ -839,9 +846,12 @@ test('A152 Proyectos_ElParcialDeLoRealDiceQueHayUnaEpicaAbierta', () => {
 //    «mirada sin hora» no se explicaban; en inglés, «(checked no time)».
 test('A156 Arnes_LaUltimaPublicadaSeLeeSinAdivinar', () => {
   const ultima = { estado: 'medido', version: '2026.10.15.48', creada: '2026-11-28T03:00:00Z', mirado: Date.parse('2026-11-28T09:41:00Z') };
-  const fila = (u, idioma) => views.filasArnes({}, { version: '2026.10.15.40', ultima: u, idioma }).find((x) => x.clave === 'ultima').texto;
+  // los momentos viajan como marcas: se leen como los ve un navegador sin guiones (en UTC, sin la etiqueta)
+  const W = require(path.join(__dirname, '..', 'site', 'when.js'));
+  const comoTexto = (s) => W.conMomentos(s).replace(/<\/?time[^>]*>/g, '');
+  const fila = (u, idioma) => comoTexto(views.filasArnes({}, { version: '2026.10.15.40', ultima: u, idioma }).find((x) => x.clave === 'ultima').texto);
   const es = fila(ultima);
-  assert.match(es, /^2026\.10\.15\.48 · imagen armada el 2026-11-28 · la más nueva del canal estable \(mirada a las 09:41 UTC\)$/, es);
+  assert.match(es, /^2026\.10\.15\.48 · imagen armada el 2026-11-28 UTC · la más nueva del canal estable \(mirada a las 09:41 UTC\)$/, es);
   assert.doesNotMatch(es, /\(del |\bstable/, 'ni «(del …)» suelto ni «stable» sin traducir');
   // sin la hora en que se miró, no se dice «mirada sin hora»: se calla
   const sinHora = fila({ ...ultima, mirado: undefined });
@@ -849,7 +859,7 @@ test('A156 Arnes_LaUltimaPublicadaSeLeeSinAdivinar', () => {
   assert.match(sinHora, /la más nueva del canal estable$/);
   const en = fila({ ...ultima, mirado: undefined }, 'en');
   assert.doesNotMatch(en, /no time|checked/, en);
-  assert.match(fila(ultima, 'en'), /^2026\.10\.15\.48 · image built on 2026-11-28 · the newest in the stable channel \(checked at 09:41 UTC\)$/);
+  assert.match(fila(ultima, 'en'), /^2026\.10\.15\.48 · image built on 2026-11-28 UTC · the newest in the stable channel \(checked at 09:41 UTC\)$/);
 });
 
 // 🔴 Falla con: la ficha de «seguimiento» llevaba el mismo rombo y el mismo amarillo que «decidir»: no se distinguía lo que
