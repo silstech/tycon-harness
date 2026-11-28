@@ -68,7 +68,7 @@ const ESQUEMA = {
     // a ROMPER una config buena. Es el mismo modo de falla que el catálogo existe para cerrar, del lado
     // de adentro: una llave nueva en el arnés que nadie registró acá.
     hijas: ['gate', 'frontend_dir', 'frontend_dirs', 'critical_manifest', 'shared_paths',
-      'preconditions', 'bundle', 'required_env'],
+      'preconditions', 'bundle', 'required_env', 'specs_dir'],
     // `bundle` va en libres porque sus hijas (artifact/sources/rebuild) viven un nivel más abajo y
     // este lint mira dos: aceptarlas es preferible a mandar a moverlas. El contrato de las tres está
     // en la cabecera de `e2e-gate.sh` y lo ejerce `e2e-gate-bundle.test.sh`.

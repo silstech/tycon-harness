@@ -13,10 +13,9 @@ const path = require('path');
 
 const aBarras = (s) => String(s).replace(/\\/g, '/');
 
-/** ¿Es un archivo de pruebas de navegador (`*.spec.ts` bajo una carpeta `e2e`, sola o dentro de `tests`)? */
+/** ¿Es un archivo de pruebas de navegador? Con las carpetas y terminaciones de code-files.js, la única lista. */
 function isE2eSpecPath(file) {
-  const f = aBarras(file);
-  return /\.spec\.ts$/.test(f) && /(^|\/)(tests\/)?e2e\//.test(f);
+  return require('./code-files.js').isE2eSpec(aBarras(file));
 }
 
 /**

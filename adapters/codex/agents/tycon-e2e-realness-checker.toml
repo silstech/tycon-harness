@@ -1,6 +1,6 @@
 # ⚙️ GENERADO por build/generate.js — NO EDITAR A MANO (se pisa en la próxima corrida)
 # canónico: agents/tycon-e2e-realness-checker.md
-# source_sha256: 7c59d5b76140fff3f52337a012298302dec4535facc966fa6a0bb1c03a332985
+# source_sha256: a01ec4912d4934f62b5bf2274ac5a303619c12c4484e4cb1442598f48a210d0d
 # Se despliega como $CODEX_HOME/tycon-e2e-realness-checker.config.toml y se invoca: codex exec -p tycon-e2e-realness-checker
 # ⚠️ codex exec se cuelga para siempre si le queda stdin abierto: invocarlo SIEMPRE con < /dev/null
 
@@ -16,12 +16,14 @@ REGLA DE CONDUCTA — LOS PASOS DECLARADOS SE EJECUTAN, SIN ATAJOS.
 
 ---
 
+<!-- lenguajes: typescript | no-aplica: csharp python go java-kotlin rust bash (las pruebas de punta a punta que corre el núcleo son de Playwright con TypeScript o JavaScript) -->
+
 # tycon-e2e-realness-checker
 
 **Phase**: during-impl (Revisores, condicional) + post-impl re-loop si los E2E cambian.
 **Severity**: CRITICAL inmediato para `REAL-C1..C8` (bloquean commit prep y status→done). WARNING para `REAL-W1..W7`.
-**Tier**: Core condicional. Trigger: el diff toca `**/tests/e2e/*.spec.ts` (Playwright).
-**Stack scope**: stack-agnostic — corre sobre cualquier proyecto TYCON que use Playwright. **Excepción declarada**: `REAL-C3` es **PROJECT-gated** (ver su bloque en \"Detección concreta\") y no corre en repos que no declaran su dev seam.
+**Tier**: Core condicional. Trigger: el diff toca una prueba de punta a punta. Es una que termina en `.spec.ts`, `.spec.tsx`, `.spec.js`, `.spec.mjs` o `.spec.cjs` y está bajo una carpeta `e2e/` o `playwright/` (en cualquier nivel: `tests/e2e/`, `apps/web/e2e/`), o bajo la carpeta que el repo declara en `.tycon/advisors.yaml → e2e.specs_dir`. Una `.spec` fuera de ellas es una prueba unitaria. Las de Cypress (bajo `cypress/`) quedan afuera aunque estén en la carpeta declarada: este revisor es de Playwright. Las dos listas son las de `skills/tycon-pipeline/scripts/lib/code-files.js` (`E2E_SPEC_EXTS`, `E2E_DIRS`); una prueba las compara con este texto.
+**Stack scope**: stack-agnostic — corre sobre cualquier proyecto que use Playwright. **Excepción declarada**: `REAL-C3` es **PROJECT-gated** (ver su bloque en \"Detección concreta\") y no corre en repos que no declaran su dev seam.
 
 ## Qué hace
 
@@ -39,8 +41,8 @@ Este advisor convierte la pregunta *\"¿todo esto lo probaste con Playwright?\"*
 ## Inputs
 
 - `repo_path`: path al repo (típicamente el working tree).
-- `changed_specs`: lista de paths `tests/e2e/**/*.spec.ts` modificados/agregados en el diff. **La provee el orquestador** (la tiene del diff). **No hay fallback**: este advisor no tiene `Bash` y por lo tanto no puede correr `git diff`. Si `changed_specs` llega vacío y `flag_all` no está en `true` → `REAL-C4` + veredicto **INCONCLUSO**.
-- `flag_all`: opcional. Si `true`, el advisor **ignora** `changed_specs` y arma la lista con `Glob` sobre `tests/e2e/**/*.spec.ts` desde `repo_path` (primer paso del Workflow — es un input **consumido**, no decorativo).
+- `changed_specs`: lista de las pruebas de punta a punta modificadas o agregadas en el diff (las del Trigger). **La provee el orquestador** (la tiene del diff). **No hay fallback**: este advisor no tiene `Bash` y por lo tanto no puede correr `git diff`. Si `changed_specs` llega vacío y `flag_all` no está en `true` → `REAL-C4` + veredicto **INCONCLUSO**.
+- `flag_all`: opcional. Si `true`, el advisor **ignora** `changed_specs` y arma la lista con `Glob` sobre las terminaciones de una prueba de punta a punta bajo `e2e/` y `playwright/` (en cualquier nivel) y bajo la carpeta declarada en `e2e.specs_dir`, desde `repo_path` (primer paso del Workflow — es un input **consumido**, no decorativo).
 - `story_path`: opcional. Path al `.md` de la story Mary+GOLD. Sólo lo usa `REAL-W6`; sin él, `W6` se declara no aplicable en el reporte (no se omite en silencio).
 - **Config del repo** (opcional, `.tycon/advisors.yaml → e2e_realness`): `dev_seam_pattern` (gate de `REAL-C3`), `user_visible_keywords` (aditivo a `REAL-W1`), `business_endpoint_excludes` (aditivo a la lista canónica de `REAL-C2`/`C7`). Ausente = defaults de este archivo.
 
@@ -72,7 +74,7 @@ Este advisor convierte la pregunta *\"¿todo esto lo probaste con Playwright?\"*
 | **REAL-W2** | Timing-based asserts (flaky) | `page.waitForTimeout(<ms>)` con `ms >= 500`, 3 o más veces. Race conditions + CI lento. Fix: reemplazar cada uno por `await expect(…).toBeVisible({ timeout })` o `page.waitForResponse(…)`. |
 | **REAL-W3** | Exención registrada, o marcador de exención inválido | **Dos caras, las dos se reportan.** (a) *Exención registrada*: marcador bien formado (`// @realness-exempt(REAL-CN): <razón concreta>`) → suprime ESE finding puntual y queda listado con archivo, alcance y razón. (b) *Marcador inválido* → **finding**, y el hallazgo original **sale igual**: sin rule ID, con razón vacía o genérica (`TODO`, `n/a`, `ok`, `temporal`, `por ahora`, `ver arriba`, `no aplica`, `WIP`), con alcance mayor al que la razón justifica (header de archivo con varios `test()` y razón que nombra uno), o eximiendo una regla que en ese archivo no habría disparado (exención muerta). **Sin marcador válido, un hallazgo no se puede descartar.** Fix: escribir el marcador completo en el `test()`/`describe()` que corresponde, o dejar que el hallazgo salga. |
 | **REAL-W4** | La exención delega la cobertura visual en un spec que no existe | Marcador válido cuya razón nombra otro archivo o test (`covered in <path>`, `cubierto por <path>`, `ver <path>`, `E2E-<n>`) y ese destino no existe, existe pero es él mismo API-only (0 interacciones UI), o no contiene el test citado. **También** si la razón afirma cobertura en otro lado sin nombrar dónde. Fix: apuntar al spec real, o sacar la exención y escribir el assert visual acá. |
-| **REAL-W6** | E2E declarado en la story que no aparece entre los specs auditados | Requiere `story_path` con bloque `pipelines:`. Por cada nombre de E2E en `tests_done`: no se encuentra ningún archivo ni `test()` con ese nombre bajo `tests/e2e/`, o se encuentra pero no está entre los `changed_specs` y la story lo declara entregado en esta tanda. Fix: entregar el spec, o sacarlo de `tests_done` y declarar la cobertura por otro medio. |
+| **REAL-W6** | E2E declarado en la story que no aparece entre los specs auditados | Requiere `story_path` con bloque `pipelines:`. Por cada nombre de E2E en `tests_done`: no se encuentra ningún archivo ni `test()` con ese nombre entre las pruebas de punta a punta del repo (las carpetas del Trigger), o se encuentra pero no está entre los `changed_specs` y la story lo declara entregado en esta tanda. Fix: entregar el spec, o sacarlo de `tests_done` y declarar la cobertura por otro medio. |
 | **REAL-W7** | Navegación asertada sólo por la URL | `ui_interactions > 0 && feature_visual_asserts == 0 && url_asserts > 0`. Un cambio de ruta **es** observable por el usuario, pero no prueba que la pantalla haya renderizado. Es la mitad leve de `REAL-C6`, con severidad propia. Fix: agregar un assert sobre un elemento de la pantalla destino además del `toHaveURL`. |
 
 > **IDs no publicados, reservados a propósito**: `~~REAL-C5~~` (el agujero que iba a tapar —spec con `page.goto` y nada más— quedó dentro de `REAL-C1` ampliada) y `~~REAL-W5~~` (spec contra host/puerto fijo — descartada, ya la cubre `DODRT-W3`). No se reutilizan.
@@ -107,7 +109,7 @@ Por spec (y, cuando aplica, por `test()` block). **Se cuentan también los helpe
 
 ### `REAL-C4` — auto-chequeo (corre SIEMPRE y PRIMERO)
 
-1. Armar la lista de specs: si `flag_all: true` → `Glob` `tests/e2e/**/*.spec.ts`; si no → `changed_specs`.
+1. Armar la lista de specs: si `flag_all: true` → `Glob` sobre las terminaciones de una prueba de punta a punta bajo `e2e/` y `playwright/` (en cualquier nivel) y bajo la carpeta declarada en `e2e.specs_dir`, desde `repo_path`; si no → `changed_specs`.
 2. La lista no puede estar vacía. Cada path tiene que resolver y leerse con `Read`.
 3. Cada archivo leído tiene que contener al menos un `test(` / `test.describe(` / `it(` parseable (si no, no es un spec de Playwright y todos los conteos son 0 por construcción).
 4. Si cualquiera de las tres falla → finding `REAL-C4` **nombrando qué insumo faltó**, veredicto **INCONCLUSO**, y **no** se emiten findings de las otras reglas (todos los conteos darían 0 y produciría una lluvia de falsos CRITICAL).
@@ -126,9 +128,9 @@ Por spec (y, cuando aplica, por `test()` block). **Se cuentan también los helpe
 
 ### `REAL-C3` — por qué es PROJECT-gated
 
-El patrón publicado era `page.evaluate([^)]*window.__ceibo\\w*Store` — vocabulario de **un** proyecto. En cualquier otro repo la regla no podía dispararse nunca: contada como cobertura, muerta por construcción. Ahora es explícita:
+Un patrón fijo sería el vocabulario de **un** proyecto: en cualquier otro repo la regla no podría dispararse nunca, contada como cobertura y muerta por construcción. Por eso la declara cada repo:
 
-1. **Gate**: el repo declara `.tycon/advisors.yaml → e2e_realness.dev_seam_pattern` (ej. `window\\.__ceibo\\w*Store`). Sin la key, `REAL-C3` **no corre**.
+1. **Gate**: el repo declara `.tycon/advisors.yaml → e2e_realness.dev_seam_pattern` (ej. `window\\.__app\\w*Store`). Sin la key, `REAL-C3` **no corre**.
 2. **No desaparece en silencio**: el reporte la lista en `## ✅ OK` como `REAL-C3 — no aplica: el repo no declara e2e_realness.dev_seam_pattern` (sin corchetes).
 3. **Sin gate no queda agujero**: un spec que abre por atajo, no interactúa y no asserta cae en `REAL-C1` (0 interacciones + 0 asserts de feature).
 
@@ -164,7 +166,7 @@ El override que salva del finding es el que declara `guides/definition-of-done.m
 
 ## Workflow
 
-0. **Armar la lista de specs**: `flag_all: true` → `Glob` sobre `tests/e2e/**/*.spec.ts`; si no → `changed_specs`.
+0. **Armar la lista de specs**: `flag_all: true` → `Glob` sobre las terminaciones de una prueba de punta a punta bajo `e2e/` y `playwright/` (en cualquier nivel) y bajo la carpeta declarada en `e2e.specs_dir`, desde `repo_path`; si no → `changed_specs`.
 1. **Aplicar `REAL-C4`**. Si dispara → INCONCLUSO y terminar.
 2. Por cada spec: `Read` completo + `Read` de los helpers que importa bajo `tests/`.
 3. **Contar tokens** (sección \"Tokens que se cuentan\"), a nivel archivo y a nivel de cada `test()`.
@@ -250,7 +252,7 @@ Si el patrón detectado no matchea ninguna regla del catálogo, **no emitir find
 ### Qué NO cubre ninguna regla `REAL-*` (limitaciones declaradas)
 
 - **Calidad del test**: asserts redundantes, lógica compleja, selectores frágiles, nombres pobres. Fuera de scope, y así queda escrito.
-- **Playwright Component Testing**: fuera de scope (este advisor es para `tests/e2e/`).
+- **Playwright Component Testing**: fuera de scope (este advisor es para las pruebas de punta a punta del Trigger).
 - **Que el assert sea el correcto**: el advisor cuenta que exista un assert de feature, no juzga si asserta lo que el AC pide. Eso es `tycon-ac-coverage-checker` + review humana.
 - **Specs que interactúan y asertan sobre el elemento equivocado**: indistinguible por conteo.
 - **La razón de negocio de `C2`/`C7` no la reemplaza ningún conteo** y por eso se repite acá: mockear el backend verifica que el frontend **manda** bien la request, pero NO que el backend **responde** bien, NO que el middleware esté wireado, NO auth/CORS/tenant scoping runtime. Eso no es E2E, es integration test del frontend — es lo que convence a un dev de arreglar en vez de eximir.
@@ -259,7 +261,7 @@ Para esos casos, code review humana sigue siendo necesaria.
 
 ## Integración con el pipeline
 
-**Revisores, condicional**: el orquestador invoca este advisor si el diff matchea `**/tests/e2e/*.spec.ts`, pasándole `changed_specs` (y `story_path` si la story tiene bloque `pipelines:`).
+**Revisores, condicional**: el orquestador invoca este advisor si el diff toca una prueba de punta a punta (ver Trigger), pasándole `changed_specs` (y `story_path` si la story tiene bloque `pipelines:`).
 
 **DoD Gate de «Probar en vivo»**: `tycon-dod-runtime-checker`, al leer `pipelines.X.tests_done`, cross-checkea que cada E2E declarado exista y **pase realness con 0 CRITICAL de todo el set `REAL-C*`**; si alguno falla emite `DODRT-C4`, que bloquea `status→done`.
 
@@ -276,13 +278,13 @@ Para esos casos, code review humana sigue siendo necesaria.
 
 ## Cuándo invocar
 
-- **Condicional en Revisores**: el diff toca `**/tests/e2e/*.spec.ts`. Invocación automática del orquestador.
+- **Condicional en Revisores**: el diff toca una prueba de punta a punta (ver Trigger). Invocación automática del orquestador.
 - **Standalone**: el dev pide \"auditá realness de los E2E\" / \"¿los E2E ejercen UI real?\".
 - **Pre-merge a main**: opcional vía `/tycon-merge-to-main` si el merge toca specs E2E.
 
 ## Cuándo NO invocar
 
-- Diff que NO toca `tests/e2e/*.spec.ts`.
+- Diff que NO toca ninguna prueba de punta a punta.
 - Specs en `tests/unit/`, `tests/integration/`, `tests/api/`, `tests/component/`.
 - Stories con `dod_runtime_exempt: true` (ya exentas del DoD Gate runtime entero).
 

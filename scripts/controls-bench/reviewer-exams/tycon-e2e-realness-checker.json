@@ -1,7 +1,7 @@
 {
   "agent": "tycon-e2e-realness-checker",
   "file": "agents/tycon-e2e-realness-checker.md",
-  "hash": "3363bd4503f238bbce5ca5636200c1eda18d840a",
+  "hash": "d97c6f0509582b047aae059b610f3ba2a89553cd",
   "passed": 4,
   "total": 4,
   "score": 1,

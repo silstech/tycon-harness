@@ -192,3 +192,25 @@ test('@story-7.45 @ac-1 T10 Factory_Playwright_Entry', () => {
   assert.equal(decl.runner.source, 'organizacion');
   assert.equal(decl.runner.tool, 'npx');
 });
+
+// 🔴 Falla con: un repo de Rust (Cargo.toml) no tenía herramienta de prueba de fábrica: la puerta no sabía correr sus
+//    pruebas, ni leer su reporte ni su cobertura.
+test('TestRunners_Rust_CargoConReporteYCobertura', () => {
+  const d = proyecto({ 'Cargo.toml': '[package]\nname = "pedidos"\nversion = "0.1.0"\n' });
+  const r = runners.resolve(d, { results: '/tmp/res' });
+  assert.ok(r, 'Cargo.toml detecta un corredor');
+  assert.equal(r.name, 'cargo');
+  assert.equal(r.tool, 'cargo-nextest', 'la herramienta que tiene que estar');
+  assert.match(r.command, /cargo (llvm-cov )?nextest/, r.command);
+  assert.ok(!/\{results\}/.test(r.command), '{results} reemplazado');
+  assert.equal(r.results.format, 'junit');
+  // lo que guarda nextest va a la carpeta de resultados de esta corrida: en un workspace, el reporte no queda en la raíz
+  assert.equal(r.results.path, '/tmp/res/nextest/arnes/junit.xml');
+  assert.match(r.command, /\[store\]\\ndir = "\/tmp\/res\/nextest"/);
+  assert.ok(r.coverage && r.coverage.format === 'lcov' && r.coverage.optional, 'la cobertura, en lcov y opcional');
+  // la configuración que pide el reporte la escribe el comando en la carpeta de resultados: nunca la lee del repo
+  assert.match(r.command, /--config-file \/tmp\/res\/nextest\.toml/);
+  assert.ok(runners.detectorFiles({}).some((x) => x.file === 'Cargo.toml' && x.name === 'cargo'), 'Cargo.toml es un detector');
+  const lenguajes = new Set(runners.FACTORY.map((f) => f.language));
+  assert.ok(lenguajes.has('rust'), 'cada herramienta de fábrica dice su lenguaje');
+});

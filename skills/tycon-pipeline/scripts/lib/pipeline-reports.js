@@ -176,6 +176,9 @@ function hasPlaywrightSpecs(repo) {
 // produciría ningún error: se ignoraría, y el repo quedaría sin la config que cree tener.
 const CLAVES_E2E = new Set([
   'gate', 'frontend_dir', 'frontend_dirs', 'critical_manifest', 'shared_paths', 'preconditions',
+  // `specs_dir`: la carpeta de pruebas de punta a punta; la lee el disparo del revisor de pruebas de punta a punta
+  // (e2eSpecsDir de pipeline-advisor-set.js), no este lector.
+  'specs_dir',
   // `bundle` la lee y la USA `e2e-gate.sh` (ver su cabecera y `leer_bundle`): compara la fecha del
   // artefacto que el navegador carga contra las fuentes y, con `rebuild:`, recompila sola. Tiene que estar
   // en esta lista: si no, este validador le diría al dev que su configuración no sirve —y de yapa que

@@ -523,6 +523,12 @@
       "requiere": []
     },
     {
+      "__nota": "lo que un revisor dice que busca es lo mismo que lo que lo dispara: las marcas de prueba salteada, los lenguajes de i18n y las pruebas de punta a punta, comparados con code-files.js.",
+      "raiz": "agent-skills",
+      "ruta": "tycon-pipeline/scripts/tests/reviewer-lists.test.js",
+      "requiere": []
+    },
+    {
       "__nota": "story 4.12: el freno del commit anota en bypass.log el commit que saltea los hooks, también con la opción abreviada que git acepta; corre el hook de verdad con una HOME temporal.",
       "raiz": "agent-skills",
       "ruta": "tycon-pipeline/scripts/tests/pre-commit-no-verify.test.js",
