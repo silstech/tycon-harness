@@ -3018,6 +3018,14 @@
       ]
     },
     {
+      "__nota": "A237: las notas de un paquete para los revisores del núcleo — la de un paquete activo llega al contexto de la vuelta (compartido y recortado), la de uno inactivo no, y una mal puesta es un paquete roto.",
+      "raiz": "agent-skills",
+      "ruta": "tycon-pipeline/scripts/tests/reviewer-notes.test.js",
+      "requiere": [
+        "agent-skills"
+      ]
+    },
+    {
       "raiz": "arnes",
       "ruta": "tests/reviewer-rules.test.sh",
       "requiere": [

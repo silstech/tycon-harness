@@ -132,7 +132,17 @@ function buildAdvisorContext({ repo, story, files, iter }) {
   // van AL PRINCIPIO del contexto, marcadas como reglas a verificar. Sin sección, el archivo queda
   // byte a byte igual. La lectura nunca tira (lib/reviewer-rules.js).
   const reglas = reglasRevisores(repo);
-  const bloqueReglas = bloqueParaContexto(reglas);
+  // Las notas de los paquetes activos en el repo para los revisores del núcleo (lib/reviewer-notes.js) van después de
+  // las reglas del repo, en el contexto compartido y en los recortados. Sin notas, nada cambia. Si los paquetes no se
+  // pueden leer, el contexto lo dice: sin la nota, un revisor no sabe lo del stack y eso no da error.
+  let bloqueNotas = '';
+  try {
+    bloqueNotas = require('./reviewer-notes.js').bloqueDeNotas(require('./pipeline-advisor-set.js').paquetesActivos(repo));
+  } catch (e) {
+    const motivo = e && Array.isArray(e.errores) ? e.errores.map((x) => `${x.archivo}: ${x.motivo}`).join('; ') : (e && e.message) || String(e);
+    bloqueNotas = `## Notas de los paquetes para los revisores del núcleo — NO SE PUDIERON LEER\n\n${motivo}\n\n`;
+  }
+  const bloqueReglas = bloqueParaContexto(reglas) + bloqueNotas;
   try {
     fs.mkdirSync(ctxDir, { recursive: true });
     const storyContent = story ? readText(story) : '';

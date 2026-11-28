@@ -8,7 +8,7 @@
  */
 const { estadoPipeline, MODELOS, PROPIA, STORY_GOLD, deriveStoryId, esCodex, fs, os, ownerWindow, packsLib, path, readSessionMarker, readText, sessionLogPath, stateDirOf } = require('./pipeline-shared.js');
 const { PRECHEQUEO, aplicarModelosDeRevisores, buildAdvisorContext, conLanzadorCodex, congelarVuelta, contextoConLaCopia, emptyWorkGate, logStep5Start, reglasRevisores, reloopHintsFor, resumenReglas, rethinkGate, salidaDelFreno, tierDe, validateFilesExist, fotoAlLanzar } = require('./pipeline-advisor-context.js');
-const { MECH_NUNCA_SACA, aplicarDecisionValidador, computeAdvisorSet, computeBase, computeCompletitud, computeConditional, computeMechDiscount, detectStack, lanzadorCodex, paquetesActivos, paquetesInstalados, resumenPaquetes, revisoresPorConfirmar, salidaGrande, sumarPorConfirmar, unique } = require('./pipeline-advisor-set.js');
+const { MECH_NUNCA_SACA, aplicarDecisionValidador, computeAdvisorSet, computeBase, computeCompletitud, computeConditional, computeMechDiscount, detectStack, lanzadorCodex, paquetesActivos, paquetesInstalados, resumenPaquetes, revisoresDelNucleo, revisoresPorConfirmar, salidaGrande, sumarPorConfirmar, unique } = require('./pipeline-advisor-set.js');
 const { conModelosDeLaCorrida, decirModelos, orgModels, pedidosDeModelos } = require('./pipeline-models.js');
 const { computeRiskClass, computeRunSize, parseFrontmatterList, runSizeDelMarcador } = require('./pipeline-risk.js');
 // Estado del log DESDE el último step5-start. Devuelve:
@@ -175,6 +175,14 @@ function hermanosDelRepo(activos) {
   return { raiz, motivo, lista, texto: packsLib.textoDeHermanos(lista, { reposRoot: raiz }) };
 }
 
+/** `{ <revisor>: <bloque de notas> }` para los revisores dados que tienen notas en los paquetes activos ({} si ninguno). */
+function notasDeValidadores(activos, revisores) {
+  const notasLib = require('./reviewer-notes.js');
+  const out = {};
+  for (const r of revisores) { const b = notasLib.bloqueDeNotas(activos, { revisor: r }); if (b) out[r] = b; }
+  return out;
+}
+
 /** Con todos = true: la lista de lo que PUEDE correr en «Validar la historia» (la página del arnés), sin mirar la máquina ni la constancia. */
 function computeValidadores({ story, repo, todos = false, deprecados = true }) {
   if (!story) throw new Error('validators: falta --story <spec.md>');
@@ -211,7 +219,8 @@ function computeValidadores({ story, repo, todos = false, deprecados = true }) {
   if (previa.run) {
     lanzamientos.push({
       agente: MODELOS.STORY_REVIEWER, paquete: null, modelo: previa.model,
-      prompt: promptRevisorDeHistorias({ story, repo }),
+      // las notas de los paquetes activos para él van dentro de su pedido (lib/reviewer-notes.js)
+      prompt: [promptRevisorDeHistorias({ story, repo }), require('./reviewer-notes.js').bloqueDeNotas(activos, { revisor: MODELOS.STORY_REVIEWER })].filter(Boolean).join('\n\n'),
       nota: `la revisión previa no tiene constancia vigente (${previa.record}): corre una vez, en el mismo mensaje que el validador; ` +
         `modelo: ${previa.model_reason}. Al terminar, story-review-record con --tokens y --duration-ms del resultado del lanzamiento.`,
     });
@@ -238,6 +247,9 @@ function computeValidadores({ story, repo, todos = false, deprecados = true }) {
     validacion_previa: validacionPrevia,
     packs: resumenPaquetes(activos), packs_dir: packsLib.dirPaquetes(),
     packs_nota: packsLib.notaDePaquetes({ repo, instalados: paquetesInstalados(), activos }),
+    // las notas de los paquetes activos para cada validador del núcleo que se lanza (lib/reviewer-notes.js): éstos no
+    // reciben el contexto de una vuelta, así que la nota va pegada en su pedido
+    notas_paquete: notasDeValidadores(activos, validadores.filter((r) => r !== MODELOS.STORY_REVIEWER)),
     contexto: { files, detection: det },
     dependencias_de_pruebas: require('./test-deps.js').dependenciasDePruebas({ repo, storyText: content }),
     // los archivos declarados que están deprecados en el repo: el validador los reporta como VAL-C9. `deprecados: false`
@@ -462,6 +474,22 @@ function cmdSiblings(cmd, args) {
   if (!repoEsDir) { process.stderr.write(`🛑 siblings: --repo no es una carpeta: ${args.repo}\n`); process.exit(2); }
   const h = hermanosDelRepo(paquetesActivos(args.repo));
   process.stdout.write(JSON.stringify({ repo: args.repo, raiz: h.raiz, ...(h.motivo ? { motivo: h.motivo } : {}), hermanos: h.lista, texto: h.texto }, null, 2) + '\n');
+  return;
+}
+
+// reviewer-notes — las notas de los paquetes activos en el repo para UN revisor del núcleo, para pegar en el pedido de
+// uno que se lanza fuera de la vuelta (el de «Probar en vivo»). Sin notas, no imprime nada. Un paquete roto sale 2.
+//   node pipeline.js reviewer-notes --agent <revisor> --repo <dir>
+function cmdReviewerNotes(cmd, args) {
+  if (!args.agent) { process.stderr.write('🛑 reviewer-notes: falta --agent <revisor>\n'); process.exit(2); }
+  let repoEsDir = false;
+  try { repoEsDir = fs.statSync(args.repo).isDirectory(); } catch (_e) { repoEsDir = false; }
+  if (!repoEsDir) { process.stderr.write(`🛑 reviewer-notes: --repo no es una carpeta: ${args.repo}\n`); process.exit(2); }
+  // un nombre mal escrito saldría vacío como «sin notas» y la nota se perdería callada: frena
+  const notasLib = require('./reviewer-notes.js');
+  const validos = notasLib.recibenNotas(revisoresDelNucleo());
+  if (!validos.includes(args.agent)) { process.stderr.write(`🛑 reviewer-notes: «${args.agent}» no es un revisor del núcleo que reciba notas (son: ${validos.join(', ')})\n`); process.exit(2); }
+  process.stdout.write(notasLib.bloqueDeNotas(paquetesActivos(args.repo), { revisor: args.agent }));
   return;
 }
 
@@ -1047,4 +1075,4 @@ function cmdMechCheck(cmd, args) {
   process.exit(result.findings.some((f) => f.severity === 'CRITICAL') ? 2 : 0);
 }
 
-module.exports = { cmdAdvisors, cmdSiblings, cmdValidators, cmdCheckCount, cmdLintConfig, cmdAdvisorRuns, cmdReviewersRun, cmdMechCheck, cmdOrgRules, cmdStoryReviewGate, cmdStoryReviewRecord, cmdValidationRecord, cmdMoveStory,advisorsRunSinceStart, CORE_REVIEWERS, coreReviewersDrift, coreReviewerNames, codeReviewerNames, computeValidadores, aplicarTamanoALosRevisores };
+module.exports = { cmdAdvisors, cmdSiblings, cmdReviewerNotes, cmdValidators, cmdCheckCount, cmdLintConfig, cmdAdvisorRuns, cmdReviewersRun, cmdMechCheck, cmdOrgRules, cmdStoryReviewGate, cmdStoryReviewRecord, cmdValidationRecord, cmdMoveStory,advisorsRunSinceStart, CORE_REVIEWERS, coreReviewersDrift, coreReviewerNames, codeReviewerNames, computeValidadores, aplicarTamanoALosRevisores };

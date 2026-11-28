@@ -95,6 +95,7 @@ function main() {
   }
   if (cmd === 'advisors') return cargar('pipeline-reviewers.js').cmdAdvisors(cmd, args);
   if (cmd === 'siblings') return cargar('pipeline-reviewers.js').cmdSiblings(cmd, args);
+  if (cmd === 'reviewer-notes') return cargar('pipeline-reviewers.js').cmdReviewerNotes(cmd, args);
   if (cmd === 'validators') return cargar('pipeline-reviewers.js').cmdValidators(cmd, args);
   if (cmd === 'smart-reloop') return cargar('pipeline-rounds.js').cmdSmartReloop(cmd, args);
   if (cmd === 'reviewer-agents') return cargar('pipeline-rounds.js').cmdReviewerAgents(cmd, args);

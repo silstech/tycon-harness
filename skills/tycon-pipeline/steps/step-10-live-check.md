@@ -294,6 +294,13 @@ sea, decidía por lo que los scripts y los hooks ya prueban— y dejaba la super
 que importaba, como una condición más. No se borró: «sin rastro» no es «no cazó nada» (sus veredictos
 no viajan a `findings.json`).
 
+Las notas de los paquetes activos para este revisor van al final de su pedido, tal cual (no recibe el contexto de una
+vuelta). Sin notas, el comando no imprime nada:
+
+```bash
+node ~/.claude/agent-skills/skills/tycon-pipeline/scripts/pipeline.js reviewer-notes --agent tycon-dod-runtime-checker --repo <repo>
+```
+
 Cuando se invoca, el advisor (definido en
 `~/.claude/agent-skills/agents/tycon-dod-runtime-checker.md`)
 ejecuta los gates per `definition-of-done.md`:

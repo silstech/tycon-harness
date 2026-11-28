@@ -51,6 +51,9 @@ El script además:
   que con el contexto completo. Es el ÚNICO recorte por advisor cableado — el recorte general
   se midió y **no paga en .NET** (0% de ahorro: todo el diff es código y le corresponde a
   todos). Evidencia y baseline: `~/.claude/.tycon-pipeline/baseline/`.
+- **Notas de los paquetes**: si un paquete activo en el repo trae `reviewer-notes/<revisor>.md`, el `context_file` y
+  cada override ya la traen, después de las reglas del repo, con el título «Para `<revisor>` — paquete `<paquete>`».
+  Cada revisor del núcleo aplica la suya; no hay que hacer nada más (lib/reviewer-notes.js).
 - **`reglas_revisores`** — **§Reglas del repo**: el estado de la sección
   `## Reglas para revisores` del `CLAUDE.md` del repo. Con `estado: 'presente'`, el `context_file`
   y cada override **ya empiezan** con esas reglas marcadas como «reglas a verificar» — no hay que
