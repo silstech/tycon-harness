@@ -245,11 +245,15 @@ de `operations.json → nightly.sources`, con el token de esa plataforma en `cre
 | Operación | Recibe | Devuelve en `value` |
 |---|---|---|
 | `repos.list` | `source` (`platform` y las claves del repo de esa plataforma sin `repo`: el dueño o el grupo) y `credential` | los repos de la fuente: `[{ id, name, archived }]`, con `id` el que recibe el clon. Una página que falla o un tope alcanzado es `no_medido`, nunca una lista más corta |
-| `repos.clone` | `source`, `credential`, `id`, `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano) o `depth` (la profundidad del clon completo) | `{ dir }`; `{ dir: null, empty: true }` si el repo está vacío. Los patrones y la profundidad los pone el núcleo; el conector pone sólo la dirección y la credencial, y ningún `.git/config` queda con ella |
+| `repos.clone` | `source`, `credential`, `id`, `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano, con `history` opcional: los pathspecs cuyo contenido en todo el historial se deja bajado) o `depth` (la profundidad del clon completo, rama `main`) | `{ dir }`, y con `history`, `history: 'completa'` o `'incompleta'` (con `historyDetail`); `{ dir: null, empty: true }` si el repo está vacío. Los patrones, el historial y la profundidad los pone el núcleo; el conector pone sólo la dirección y la credencial, y ningún `.git/config` queda con ella |
 
 Un conector que las atiende enmascara cada cabecera que arma (`::add-mask::`) en la salida del paso antes de usarla —
-nunca en una salida que alguien captura, porque esa máscara no le llega a GitHub— y no sigue redirecciones con la
-credencial. Los motivos son los del contrato: sin token, `sin_credencial`; 401 o 403, `rechazado`; un grupo que no
+nunca en una salida que alguien captura, porque esa máscara no le llega a GitHub—, la pasa a git por el entorno
+(`GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_<n>` / `GIT_CONFIG_VALUE_<n>`, con `conConfigDeGit` de `scripts/lib/clean-git-env.js`)
+y nunca en los argumentos, que cualquier proceso de la máquina ve, y no sigue redirecciones con la credencial. El
+historial de `history` se baja al clonar (`scripts/lib/clone-history.js`) porque el paso que lee el clon después no tiene
+la credencial: sin eso, cada versión vieja que pidieran las métricas saldría sin ella. Un historial incompleto deja la
+fuente medida en parte. Los motivos son los del contrato: sin token, `sin_credencial`; 401 o 403, `rechazado`; un grupo que no
 existe, `no_encontrado`; la red, `red`; lo demás, `no_medido`. El de GitHub reusa la App o el usuario de máquina
 (`ORG_TOKEN`) si la fuente no trae credencial; el de GitLab habla HTTP directo con la API v4, sin glab.
 

@@ -36,7 +36,7 @@
 # Con `nightly.sources` en operations.json (OPERATIONS_FILE; por defecto, el de la carpeta en que corre), `--org` no mira
 # a los dueños: corre el paso común de la noche (scripts/nightly/sources.js), que le pide a cada fuente sus repos por la
 # capa de plataforma y deja el índice de carpetas y el estado por fuente en DASHBOARD_DIR (por defecto, .dashboard). Una
-# sección mal escrita se avisa y la noche sigue con lo de hoy.
+# sección mal escrita se avisa, deja el estado del día con cada fuente «no medida» y la noche sigue con lo de hoy.
 set -uo pipefail
 
 MODE="${1:-}"; DEST="${2:-}"; TEAM_REPOS=""
@@ -49,7 +49,7 @@ OPS="${OPERATIONS_FILE:-operations.json}"
 # avisa de los que la fuente no devolvió
 REPOS_JSON="${REPOS_JSON_FILE:-scripts/nightly/dependencies/repos.json}"
 [ -f "${REPOS_JSON}" ] || REPOS_JSON=""
-if [ "${MODE}" = "--org" ] && [ -f "${OPS}" ] && node "${HERE}/scripts/nightly/sources.js" declared --operations "${OPS}"; then
+if [ "${MODE}" = "--org" ] && [ -f "${OPS}" ] && node "${HERE}/scripts/nightly/sources.js" declared --operations "${OPS}" --dashboard "${DASHBOARD_DIR:-.dashboard}"; then
   exec node "${HERE}/scripts/nightly/sources.js" clone --dir "${DEST}" --operations "${OPS}" ${TEAM_REPOS:+--team-repos "${TEAM_REPOS}"} ${REPOS_JSON:+--repos-json "${REPOS_JSON}"} --dashboard "${DASHBOARD_DIR:-.dashboard}"
 fi
 [ -n "${ORG_TOKEN:-}" ] || { echo "::error::Falta la credencial de la organización para leer sus repos: la GitHub App (variable HARNESS_APP_CLIENT_ID y secreto HARNESS_APP_PRIVATE_KEY) o el secreto HARNESS_ORG_TOKEN. No se clonó nada"; exit 1; }

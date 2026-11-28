@@ -350,7 +350,10 @@ async function hablar(ctx) {
     }
     if (!faltan.length && !x.desconocidos.length) continue;
     const partes = [];
-    if (x.desconocidos.length) partes.push(`repo(s) fuera de repos.json: ${x.desconocidos.join(', ')} — sin repo de GitHub conocido, no se les pide`);
+    const deFuente = x.deFuente || [];
+    const fuera = x.desconocidos.filter((r) => !deFuente.includes(r));
+    if (fuera.length) partes.push(`repo(s) fuera de repos.json: ${fuera.join(', ')} — sin repo de GitHub conocido, no se les pide`);
+    if (deFuente.length) partes.push(`repo(s) de una fuente: ${deFuente.join(', ')} — sin pedido por hallazgo: va a la ficha y al pedido de decisión del repo de operaciones`);
     if (postergadasIds.has(x.ficha.idFicha)) partes.push('postergada por el tope de la noche');
     partes.push(...faltan.map((repo) => {
       const suyo = res.fallidos.find((y) => y.ficha === x.ficha.idFicha && y.proyecto === repo && wi.isNoWorkItemStep(y.paso));

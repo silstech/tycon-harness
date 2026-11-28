@@ -230,8 +230,10 @@ lista y clona: nunca en el que corre código de los productos.
 
 **Lo que cambia.** Con fuentes declaradas, las métricas recorren esas fuentes y no las de `METRICS_OWNERS` (la variable
 se ignora y la corrida lo avisa). Cada fuente queda **medida**, **medida en parte** (un repo declarado en `repos.json` o
-en `team-repos.json` que la fuente no devolvió, o uno que no se pudo clonar: los demás se miden igual) o **no medida**,
-con su motivo («cargá el token», «renovalo», el grupo que no existe), y el tablero muestra una fila por fuente. Cero
+en `team-repos.json` que la fuente no devolvió, uno que no se pudo clonar o uno cuyo historial no se bajó entero: los
+demás se miden igual) o **no medida**, con su motivo («cargá el token», «renovalo», el grupo que no existe), y el tablero
+muestra una fila por fuente. Si la sección `nightly` tiene problemas, esa noche cada fuente queda **no medida** con ese
+motivo: el tablero no sigue mostrando la medición de ayer. Cero
 repos en una fuente es un aviso, nunca un verde mudo. En la revisión de dependencias, un repo de otra plataforma se
 declara en `repos.json` con `"source": { "platform": "gitlab", "namespace": "…", "repo": "…" }`.
 

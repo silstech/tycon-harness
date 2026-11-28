@@ -25,6 +25,7 @@ const path = require('path');
 
 // el nocturno vive en la misma carpeta: por la ruta vieja cargaría el reemplazo, que deja un aviso en la salida
 const noc = require('./nightly-dependencies');
+const DEP_PROJECT = require('../../lib/dependency-project.js');
 
 const { listaDe, ponerLista, proyectoAzureDe, leerPedidos } = noc;
 
@@ -68,8 +69,9 @@ function proyectosDeFicha(f, cfg) {
 }
 
 /**
- * `[{ ficha, proyectos, faltan, conPedido, desconocidos }]` de las fichas vivas. La que está contando sus noches sin
- * aparecer no pide: la vulnerabilidad ya no está en ningún repo medido.
+ * `[{ ficha, proyectos, faltan, conPedido, desconocidos, deFuente }]` de las fichas vivas. La que está contando sus noches
+ * sin aparecer no pide: la vulnerabilidad ya no está en ningún repo medido. `deFuente`: los desconocidos que repos.json
+ * sí declara, con `source` (un repo de una fuente: su hallazgo va a la ficha y al pedido de decisión, sin pedido propio).
  */
 function paresPorPedir(fichas, cfg) {
   return fichas.filter((f) => f.viva && !f.contando).map((f) => {
@@ -77,7 +79,8 @@ function paresPorPedir(fichas, cfg) {
     const pedidos = new Map(leerPedidos(f.txt).map((x) => [x.proyecto, x.id]));
     return { ficha: f, proyectos, faltan: proyectos.filter((p) => !pedidos.has(p)),
              conPedido: proyectos.filter((p) => pedidos.has(p)),
-             desconocidos: f.fi.listas.repos.filter((r) => !proyectoAzureDe(r, cfg)) };
+             desconocidos: f.fi.listas.repos.filter((r) => !proyectoAzureDe(r, cfg)),
+             deFuente: f.fi.listas.repos.filter((r) => { const e = !proyectoAzureDe(r, cfg) && DEP_PROJECT.entryFor(r, cfg); return !!(e && e.source); }) };
   });
 }
 

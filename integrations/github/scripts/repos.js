@@ -16,6 +16,7 @@
 // pruebas usan una carpeta local). La credencial: la de la fuente (`credential`), o ORG_TOKEN (la App o el usuario de
 // máquina del workflow). ORG_TOKEN_KIND dice cuál es (`app` o `user`); vacía, se averigua: sólo el token de una App lee
 // `installation/repositories`.
+// Cada git lleva la cabecera en su entorno (GIT_CONFIG_*), nunca en los argumentos: ahí la vería cualquier proceso.
 
 const fs = require('fs');
 const path = require('path');
@@ -109,6 +110,9 @@ function listar({ env, owners, kind, prefix = '', copias = new Set() }) {
 // ── el clon ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const gitRun = (args, opts = {}) => spawnSync('git', args, { encoding: 'utf8', windowsHide: true, ...opts });
+/** El entorno de un git con la cabecera por GIT_CONFIG_* (ni en los argumentos, que cualquier proceso ve, ni en el disco). */
+const conCabecera = (env, header) => require(path.join(__dirname, '..', '..', '..', 'scripts', 'lib', 'clean-git-env.js'))
+  .conConfigDeGit(env, { 'http.extraheader': header });
 
 /** La cabecera de la credencial para git: `AUTHORIZATION: basic <base64 de x-access-token:token>`. */
 function cabecera(token) {
@@ -155,7 +159,7 @@ function declared(dest, header, env, entrada) {
     }
     if (ruta.startsWith('/') || ruta.includes('..')) { console.log(`::warning::la ruta «${ruta}» sale del destino: no se clona`); fallidos.push(ruta); continue; }
     fs.mkdirSync(path.dirname(path.join(dest, ruta)), { recursive: true });
-    const r = gitRun(['-c', `http.extraheader=${header}`, 'clone', '--quiet', '--depth=1', '--branch', 'main', `${server}/${id}.git`, path.join(dest, ruta)], { env });
+    const r = gitRun(['clone', '--quiet', '--depth=1', '--branch', 'main', `${server}/${id}.git`, path.join(dest, ruta)], { env: conCabecera(env, header) });
     if (r.status !== 0) {
       console.log(`::warning::No se pudo clonar ${id}: ${`${r.stdout || ''}${r.stderr || ''}`.split('\n').slice(0, 2).map((l) => `${l} `).join('')}`);
       fallidos.push(id);
@@ -201,7 +205,7 @@ function org(dest, header, env, teamRepos) {
     if (it.copy) { saltadas.push(it.full); continue; }
     total++;
     const destino = path.join(dest, `${it.full.split('/')[0]}__${it.full.split('/')[1]}`);
-    const c = gitRun(['-c', `http.extraheader=${header}`, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', `${server}/${it.full}.git`, destino], { env });
+    const c = gitRun(['clone', '--quiet', '--filter=blob:none', '--no-checkout', `${server}/${it.full}.git`, destino], { env: conCabecera(env, header) });
     if (c.status !== 0) {
       console.log(`   ✗ ${it.full}: ${`${c.stdout || ''}${c.stderr || ''}`.split('\n')[0].slice(0, 160)}`);
       fallidos.push(`${it.full}(clone)`); continue;
@@ -268,9 +272,11 @@ function reposClone(args, ctx) {
   const server = ctx.env.GITHUB_SERVER_URL || 'https://github.com';
   // git en inglés: motivoDe lee sus errores por el texto. El lector sale de la raíz del arnés que da el núcleo (el
   // conector puede vivir en otra carpeta)
-  const { idiomaFijo } = require(path.join(ctx.root, 'scripts', 'lib', 'clean-git-env.js'));
-  const env = idiomaFijo(ctx.env, { GIT_TERMINAL_PROMPT: '0' });
-  const H = ['-c', `http.extraheader=${header}`];
+  // la cabecera va en el entorno de cada git (GIT_CONFIG_*): ni en los argumentos, que cualquier proceso ve, ni en el
+  // disco; y sin seguir redirecciones, para que no salga del servidor
+  const { idiomaFijo, conConfigDeGit } = require(path.join(ctx.root, 'scripts', 'lib', 'clean-git-env.js'));
+  const env = conConfigDeGit(idiomaFijo(ctx.env, { GIT_TERMINAL_PROMPT: '0' }),
+    { 'http.followRedirects': 'false', 'http.extraheader': header });
   const fallar = (r) => {
     fs.rmSync(args.dest, { recursive: true, force: true });
     const t = limpio(`${r.stderr || ''}${r.stdout || ''}`, [token, auth]);
@@ -278,10 +284,10 @@ function reposClone(args, ctx) {
   };
   fs.mkdirSync(path.dirname(args.dest), { recursive: true });
   if (args.depth) {
-    const r = gitRun([...H, 'clone', '--quiet', `--depth=${args.depth}`, '--branch', 'main', `${server}/${args.id}.git`, args.dest], { env });
+    const r = gitRun(['clone', '--quiet', `--depth=${args.depth}`, '--branch', 'main', `${server}/${args.id}.git`, args.dest], { env });
     return r.status === 0 ? { ok: true, value: { dir: args.dest } } : fallar(r);
   }
-  const r = gitRun([...H, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', `${server}/${args.id}.git`, args.dest], { env });
+  const r = gitRun(['clone', '--quiet', '--filter=blob:none', '--no-checkout', `${server}/${args.id}.git`, args.dest], { env });
   if (r.status !== 0) return fallar(r);
   if (gitRun(['-C', args.dest, 'rev-parse', '-q', '--verify', 'HEAD'], { env }).status !== 0) {
     fs.rmSync(args.dest, { recursive: true, force: true });
@@ -289,8 +295,12 @@ function reposClone(args, ctx) {
   }
   gitRun(['-C', args.dest, 'sparse-checkout', 'init', '--no-cone'], { env });
   fs.writeFileSync(path.join(args.dest, '.git', 'info', 'sparse-checkout'), `${args.sparse.join('\n')}\n`);
-  const c = gitRun(['-C', args.dest, ...H, 'checkout', '--quiet'], { env });
-  return c.status === 0 ? { ok: true, value: { dir: args.dest } } : fallar(c);
+  const c = gitRun(['-C', args.dest, 'checkout', '--quiet'], { env });
+  if (c.status !== 0) return fallar(c);
+  if (!args.history) return { ok: true, value: { dir: args.dest } };
+  const { bajarHistorial } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
+  const h = bajarHistorial((a) => gitRun(a, { env }), args.dest, args.history);
+  return { ok: true, value: { dir: args.dest, history: h.ok ? 'completa' : 'incompleta', ...(h.ok ? {} : { historyDetail: h.detail }) } };
 }
 
 module.exports = { 'repos.list': reposList, 'repos.clone': reposClone, listar, cabecera, declared, org };

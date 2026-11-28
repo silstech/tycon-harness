@@ -43,7 +43,9 @@ const presenteArg = (x) => x !== undefined && x !== null;
  * `platform` y las claves del repo de esa plataforma sin la última, `repo`) y, opcional, `credential` (el token de esa
  * plataforma, que pasa quien llama). `repos.list` contesta `[{ id, name, archived }]`. `repos.clone` lleva además `id`
  * (el que dio la lista), `dest` (una carpeta absoluta) y `sparse` (los patrones del clon liviano, que pone el núcleo) o
- * `depth` (la profundidad del clon completo); contesta `{ dir }`. Devuelve el problema en texto, o null. Qué claves
+ * `depth` (la profundidad del clon completo); con `sparse`, opcional, `history` (pathspecs de git cuyo contenido en todo
+ * el historial el conector deja bajado al clonar, mientras tiene la credencial: quien lee el clon después no la tiene);
+ * contesta `{ dir }`, y con `history`, `history: 'completa' | 'incompleta'` (con `historyDetail`). Devuelve el problema en texto, o null. Qué claves
  * lleva la fuente de cada plataforma lo valida quien la lee (operations-config.js).
  */
 function sourceArgsProblem(operation, a) {
@@ -60,6 +62,10 @@ function sourceArgsProblem(operation, a) {
   if (conSparse === conDepth) return 'el clon lleva sparse (los patrones del clon liviano) o depth (la profundidad), uno de los dos';
   if (conSparse && !(Array.isArray(a.sparse) && a.sparse.length && a.sparse.every((p) => typeof p === 'string' && p.trim() && !p.startsWith('-')))) return 'sparse es una lista de patrones';
   if (conDepth && !(Number.isInteger(a.depth) && a.depth >= 1)) return 'depth es un entero mayor que 0';
+  if (presenteArg(a.history)) {
+    if (!conSparse) return 'history va sólo con sparse (el clon liviano)';
+    if (!(Array.isArray(a.history) && a.history.length && a.history.every((p) => typeof p === 'string' && p.trim() && !p.startsWith('-')))) return 'history es una lista de pathspecs';
+  }
   return null;
 }
 

@@ -114,7 +114,8 @@ en `operations.json → nightly.sources` (`{ "platform": "gitlab", "namespace": 
 `host` sólo para una instalación propia) y su token, con `read_api` y `read_repository`, en el secreto
 `HARNESS_SOURCE_CREDENTIALS` (`{ "gitlab": "glpat-…" }`). El conector lista los proyectos del grupo y de sus subgrupos
 (`repos.list`, con los archivados marcados: no se clonan ni se dan por faltantes) y los clona (`repos.clone`) hablando HTTP directo con la API v4: en el servidor de
-la noche no hace falta glab. Sus repos entran a las métricas, a la revisión de dependencias y al tablero, que muestra si
+la noche no hace falta glab. El token va a git por el entorno, nunca en los argumentos ni en el disco, y el clon
+liviano deja bajado el historial de los Markdown que leen las métricas, que corren después sin el token. Sus repos entran a las métricas, a la revisión de dependencias y al tablero, que muestra si
 cada fuente quedó medida, medida en parte o no medida, con su motivo. Cómo se declara, paso a paso, y lo que todavía no
 hace: `pipelines/operations/github/README.md`, punto 3.2.
 

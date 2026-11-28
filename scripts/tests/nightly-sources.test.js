@@ -908,6 +908,204 @@ test('T33 Gitlab_ClonQueFallaDiceElMotivo @story-1.6 @ac-13', async () => {
   no(await clon({ id: 'web', dest: path.join(tmp('c-'), 'x'), depth: 1 }), 'rechazado', /no es un proyecto de GitLab/);
 });
 
+// ── lo que pidió la revisión del pedido ─────────────────────────────────────────────────────────────────────────────
+
+/** Un repo bare con una historia que cambia de estado en tres commits (lo que leen las métricas). */
+function repoConHistoria(root, full) {
+  const bare = path.join(root, `${full}.git`);
+  fs.mkdirSync(bare, { recursive: true });
+  git(bare, ['init', '--quiet', '--bare']); git(bare, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
+  git(bare, ['config', 'uploadpack.allowFilter', 'true']); git(bare, ['config', 'http.receivepack', 'false']);
+  const s = path.join(tmp('semilla-'), 'x');
+  git(path.dirname(s), ['clone', '--quiet', bare, s]);
+  for (const [i, st] of ['draft', 'ready-for-dev', 'done'].entries()) {
+    write(s, { 'stories/s1.md': `---\nstory: S-1\nstatus: ${st}\n---\n# Uno\n`, 'src/app.js': `x${i}\n` });
+    git(s, ['add', '-A']); git(s, ['commit', '--quiet', '-m', st], { GIT_COMMITTER_DATE: `2026-01-0${i + 1}T00:00:00Z`, GIT_AUTHOR_DATE: `2026-01-0${i + 1}T00:00:00Z` });
+  }
+  git(s, ['branch', '-M', 'main']); git(s, ['push', '--quiet', 'origin', 'main']);
+  return bare;
+}
+
+test('T34 Fuente_LasMetricasLeenElHistorialSinCredencial @story-1.6 @ac-6', async () => {
+  const repos = tmp('gl-repos-');
+  repoConHistoria(repos, 'acme/web');
+  const lab = await gitlab({ repos, grupos: { acme: [[proyecto('acme', 'web')]] } });
+  const m = mundo();
+  const SM = require(path.join(ROOT, 'scripts', 'metrics', 'sdlc-stage-metrics.js'));
+  // las métricas corren en otro paso y otro proceso (su git es sincrónico: en este proceso trabaría al laboratorio), sin
+  // la credencial y sin terminal que pregunte usuario, como en la noche
+  const transiciones = async (dir) => {
+    const codigo = `process.stdout.write(JSON.stringify(require(${JSON.stringify(path.join(ROOT, 'scripts', 'metrics', 'sdlc-stage-metrics.js'))})`
+      + `.derivarTransiciones(${JSON.stringify(dir)}, [{ file: ${JSON.stringify(path.join(dir, 'stories', 's1.md'))}, id: 'S-1' }])))`;
+    const r = await run(process.execPath, ['-e', codigo], { env: { ...m.env, GIT_TERMINAL_PROMPT: '0' } });
+    assert.strictEqual(r.code, 0, r.all);
+    return JSON.parse(r.out);
+  };
+  // la noche clona la fuente: el clon liviano trae el historial de los Markdown mientras tiene la credencial
+  const r = await noche(m, { port: lab.port, creds: { gitlab: TOKEN }, sources: [GL_SRC(lab.port)] });
+  assert.strictEqual(r.code, 0, r.all);
+  assert.strictEqual(fuente(r.estado, /gitlab/).estado, 'medida', r.all);
+  const [folder] = Object.keys(r.index);
+  const dir = path.join(r.dest, folder);
+  assert.strictEqual(SM.esClonParcial(dir), true, 'sigue siendo un clon liviano');
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, '.git', 'config'), 'utf8'), /extraheader|oauth2|glpat/i, 'sin la credencial en el disco');
+  let antes = lab.pedidos.length;
+  const t = await transiciones(dir);
+  assert.deepStrictEqual(t.storiesFaltantes, [], JSON.stringify(t));
+  assert.strictEqual(t.medidas, 1, JSON.stringify(t));
+  assert.strictEqual(lab.pedidos.length, antes, 'las métricas no le pidieron nada al servidor');
+  // sin `history`, el mismo clon deja las transiciones no medidas (el pedido de las métricas sale sin credencial y el
+  // servidor lo rechaza): la prueba distingue
+  const d2 = path.join(tmp('clon-'), 'w');
+  const c = resultado((await capa(m, 'repos.clone', { source: GL_SRC(lab.port), id: 'acme/web', dest: d2, sparse: ['**/*.md'], credential: TOKEN }, { TYCON_GITLAB_PORT: String(lab.port) })).out);
+  assert.strictEqual(c.ok, true, JSON.stringify(c));
+  assert.strictEqual(c.value.history, undefined);
+  antes = lab.pedidos.length;
+  const t2 = await transiciones(d2);
+  assert.deepStrictEqual(t2.storiesFaltantes, ['S-1'], JSON.stringify(t2));
+  const pedidos = lab.pedidos.slice(antes).filter((p) => /\.git\//.test(p.path));
+  assert.ok(pedidos.length && pedidos.every((p) => !p.headers.authorization), 'el pedido de las métricas salió sin credencial');
+});
+
+test('T35 Fuente_HistorialIncompletoEsMedidaEnParte @story-1.6 @ac-13', () => {
+  const H = require(path.join(ROOT, 'scripts', 'lib', 'clone-history.js'));
+  const log = ':100644 100644 0000000000000000000000000000000000000000 aaaa000000000000000000000000000000000001 A\tstories/s1.md\n'
+    + ':100644 100644 aaaa000000000000000000000000000000000001 bbbb000000000000000000000000000000000002 M\tstories/s1.md\n';
+  const llamadas = [];
+  const git = (falla) => (a) => { llamadas.push(a); return a.includes('log') ? { status: 0, stdout: log } : { status: falla ? 128 : 0 }; };
+  assert.deepStrictEqual(H.bajarHistorial(git(false), '/x', ['*.md']), { ok: true, total: 2, faltan: 0, detail: null });
+  const f = H.bajarHistorial(git(true), '/x', ['*.md']);
+  assert.deepStrictEqual([f.ok, f.faltan, f.total], [false, 2, 2]);
+  assert.match(f.detail, /2 de 2 versiones[^\n]*no medidas/);
+  assert.ok(llamadas.some((a) => a.includes('fetch') && a.includes('bbbb000000000000000000000000000000000002')));
+  // un historial que no se lee no es un historial vacío
+  assert.strictEqual(H.bajarHistorial(() => ({ status: 128 }), '/x', ['*.md']).ok, false);
+  // el contrato: history va sólo con el clon liviano, y es una lista de pathspecs
+  const base = { source: { platform: 'gitlab' }, id: 'acme/web', dest: '/tmp/x' };
+  assert.strictEqual(C().sourceArgsProblem('repos.clone', { ...base, sparse: ['**/*.md'], history: ['*.md'] }), null);
+  assert.match(C().sourceArgsProblem('repos.clone', { ...base, depth: 1, history: ['*.md'] }), /sólo con sparse/);
+  assert.match(C().sourceArgsProblem('repos.clone', { ...base, sparse: ['**/*.md'], history: ['--upload-pack=x'] }), /pathspecs/);
+});
+
+/** Un `git` de mentira adelante en el PATH que anota los argumentos y las claves (no los valores) de GIT_CONFIG_*. */
+function gitEspia() {
+  const bin = tmp('espia-');
+  const log = path.join(bin, 'argv.log');
+  const real = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nprintf '%s\\n' "ARGV $*" >> '${log}'\ni=0; while [ "$i" -lt "\${GIT_CONFIG_COUNT:-0}" ]; do eval "printf 'KEY %s\\\\n' \\"\\$GIT_CONFIG_KEY_$i\\"" >> '${log}'; i=$((i+1)); done\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  return { bin, leer: () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : ''), limpiar: () => fs.rmSync(log, { force: true }) };
+}
+
+test('T36 Secreto_NiEnLosArgumentosDeGit @story-1.6 @ac-10', async () => {
+  const repos = tmp('gl-repos-');
+  repoConHistoria(repos, 'acme/web');
+  const lab = await gitlab({ repos });
+  const m = mundo();
+  const espia = gitEspia();
+  const PATH = `${espia.bin}${path.delimiter}${process.env.PATH}`;
+  const b64 = Buffer.from(`oauth2:${TOKEN}`).toString('base64');
+  const secretos = new RegExp(`${TOKEN}|${b64}|${Buffer.from(`x-access-token:${GH_TOKEN}`).toString('base64')}|${GH_TOKEN}|extraheader|authorization`, 'i');
+  // GitLab: el clon liviano con su historial y el completo
+  for (const args of [{ sparse: ['**/*.md'], history: ['*.md'] }, { depth: 1 }]) {
+    espia.limpiar();
+    const dest = path.join(tmp('clon-'), 'w');
+    const r = resultado((await capa(m, 'repos.clone', { source: GL_SRC(lab.port), id: 'acme/web', dest, credential: TOKEN, ...args }, { TYCON_GITLAB_PORT: String(lab.port), PATH })).out);
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    if (args.history) assert.strictEqual(r.value.history, 'completa', JSON.stringify(r));
+    const log = espia.leer();
+    assert.match(log, /^ARGV clone/m, 'el espía vio el clon');
+    assert.doesNotMatch(log.split('\n').filter((l) => l.startsWith('ARGV')).join('\n'), secretos, 'ningún argumento lleva la credencial');
+    assert.match(log, /^KEY http\.extraheader$/m, 'la cabecera viaja por el entorno');
+    assert.match(log, /^KEY http\.followRedirects$/m, 'sin seguir redirecciones');
+  }
+  // GitHub: el mismo trato (la credencial por el entorno, sin seguir redirecciones)
+  const base = tmp('gh-');
+  const gh = githubLab(base, ['web']);
+  for (const args of [{ sparse: ['**/*.md'], history: ['*.md'] }, { depth: 1 }]) {
+    espia.limpiar();
+    const dest = path.join(tmp('clon-'), 'w');
+    const r = resultado((await capa(m, 'repos.clone', { source: { platform: 'github', org: 'acme' }, id: 'acme/web', dest, credential: GH_TOKEN, ...args },
+      { GITHUB_SERVER_URL: `file://${gh.server}`, PATH })).out);
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    const log = espia.leer();
+    assert.doesNotMatch(log.split('\n').filter((l) => l.startsWith('ARGV')).join('\n'), secretos, 'ningún argumento lleva la credencial');
+    assert.match(log, /^KEY http\.extraheader$/m);
+    assert.match(log, /^KEY http\.followRedirects$/m);
+  }
+});
+
+test('T37 Gitlab_ClonCompletoEsLaRamaMain @story-1.6 @ac-6', async () => {
+  const repos = tmp('gl-repos-');
+  const bare = repoBare(repos, 'acme/api', { 'api.sln': '\n' });
+  // la rama por defecto del servidor es otra: la revisión de dependencias mira main igual
+  const s = path.join(tmp('semilla-'), 'x');
+  git(path.dirname(s), ['clone', '--quiet', bare, s]);
+  git(s, ['checkout', '--quiet', '-b', 'dev']); write(s, { 'dev.txt': 'd\n' }); git(s, ['add', '-A']); git(s, ['commit', '--quiet', '-m', 'dev']);
+  git(s, ['push', '--quiet', 'origin', 'dev']);
+  git(bare, ['symbolic-ref', 'HEAD', 'refs/heads/dev']);
+  const lab = await gitlab({ repos });
+  const m = mundo();
+  const dest = path.join(tmp('clon-'), 'api');
+  const r = resultado((await capa(m, 'repos.clone', { source: GL_SRC(lab.port), id: 'acme/api', dest, depth: 1, credential: TOKEN }, { TYCON_GITLAB_PORT: String(lab.port) })).out);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(git(dest, ['rev-parse', '--abbrev-ref', 'HEAD']).trim(), 'main');
+  assert.ok(!fs.existsSync(path.join(dest, 'dev.txt')));
+});
+
+test('T38 Tablero_SeccionRotaNoMuestraLaDeAyer @story-1.6 @ac-9', async () => {
+  const m = mundo();
+  const D = require(path.join(ROOT, 'scripts', 'nightly', 'dashboard', 'dashboard.js'));
+  for (const [caso, escribir, re] of [
+    ['sección con problemas', (f) => operations(path.dirname(f), [{ platform: 'gitlab', namespace: 'acme' }, { platform: 'bitbucket', org: 'x' }]), /^gitlab:[^\n]*acme$/],
+    ['archivo que no valida', (f) => fs.writeFileSync(f, JSON.stringify({ version: 'uno', nightly: { sources: [{ platform: 'gitlab', namespace: 'acme' }] } })), /^gitlab:[^\n]*acme$/],
+    ['archivo ilegible', (f) => fs.writeFileSync(f, '{ no es json'), /las fuentes de la noche/],
+  ]) {
+    const base = tmp('rota-');
+    const f = path.join(base, 'operations.json');
+    escribir(f);
+    const dash = path.join(base, '.dashboard');
+    // el estado de ayer: medida
+    fs.mkdirSync(dash, { recursive: true });
+    fs.writeFileSync(path.join(dash, 'nightly-sources-2026-11-26.json'), JSON.stringify({ fecha: '2026-11-26', generado: '2026-11-26T03:00:00Z', fuentes: [{ fuente: 'gitlab:acme', estado: 'medida', repos: 3 }] }));
+    // la noche de hoy, por clone-repos.sh: vuelve al camino de siempre (acá, sin credencial) y deja el estado del día
+    const hoy = '2026-11-27';
+    const r = await run('bash', [CLONE_SH, '--org', path.join(base, 'repos')], { cwd: base, env: { ...m.env, OPERATIONS_FILE: f, DASHBOARD_DIR: dash, TYCON_TODAY: hoy } });
+    assert.match(r.out, /::warning::[^\n]*lo de hoy/, `${caso}: ${r.all}`);
+    const archivo = path.join(dash, `nightly-sources-${hoy}.json`);
+    assert.ok(fs.existsSync(archivo), `${caso}: sin el estado del día\n${r.all}`);
+    const doc = JSON.parse(fs.readFileSync(archivo, 'utf8'));
+    assert.ok(doc.fuentes.length >= 1 && doc.fuentes.every((x) => x.estado === 'no_medida'), `${caso}: ${JSON.stringify(doc)}`);
+    assert.ok(doc.fuentes.some((x) => re.test(x.fuente)), `${caso}: ${JSON.stringify(doc.fuentes)}`);
+    assert.ok(doc.fuentes.every((x) => /esta noche no se midió/.test(x.detalle)));
+    // el tablero lee el de hoy: «no medida», nunca el «medida» de ayer
+    const ficha = D.fichaFuentes(doc, hoy);
+    assert.ok(ficha.fuentes.every((x) => x.estado === 'no_medida'), `${caso}: ${JSON.stringify(ficha)}`);
+  }
+  // sin sección nightly, nada cambia: no se escribe estado
+  const base = tmp('sin-');
+  const dash = path.join(base, '.dashboard');
+  const d = await run(process.execPath, [SOURCES, 'declared', '--operations', operations(base), '--dashboard', dash], { env: m.env });
+  assert.strictEqual(d.code, 1, d.all);
+  assert.ok(!fs.existsSync(dash), 'sin fuentes declaradas no hay estado que escribir');
+});
+
+test('T39 Dependencias_RepoDeFuenteNoSeDiceFueraDeLaLista @story-1.6 @ac-8', () => {
+  const WI = require(path.join(ROOT, 'scripts', 'nightly', 'dependencies', 'work-items.js'));
+  const cfg = { repos: [
+    { producto: 'Acme', ruta: 'Acme/back', tipo: 'npm', source: { platform: 'gitlab', host: 'localhost', namespace: 'acme', repo: 'back' } },
+    { producto: 'Acme', ruta: 'Acme/web', tipo: 'npm', github: 'acme/web' },
+  ] };
+  const ficha = { viva: true, contando: false, txt: '', fi: { listas: { repos: ['Acme/back', 'Acme/web', 'Otro/suelto'] }, escalares: {} } };
+  const [p] = WI.paresPorPedir([ficha], cfg);
+  assert.deepStrictEqual(p.faltan, ['acme/web'], 'el issue se pide sólo donde hay un repo de GitHub');
+  assert.deepStrictEqual(p.desconocidos, ['Acme/back', 'Otro/suelto']);
+  assert.deepStrictEqual(p.deFuente, ['Acme/back'], 'el de la fuente está en la lista: no se dice «fuera de repos.json»');
+  for (const c of ['github', 'azure-devops']) {
+    const t = fs.readFileSync(path.join(ROOT, 'integrations', c, 'scripts', 'dependency-notices.js'), 'utf8');
+    assert.match(t, /repo\(s\) de una fuente: \$\{deFuente\.join/, `${c}: el aviso nombra los repos de fuente aparte`);
+  }
+});
+
 // ── el diff de la historia (AC11) ────────────────────────────────────────────────────────────────────────────────────
 
 /** La rama contra la que se compara: la que sigue la rama actual, o main. */

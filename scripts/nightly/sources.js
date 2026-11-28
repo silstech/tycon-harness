@@ -7,7 +7,9 @@
 // Uso:
 //   node sources.js declared --operations <operations.json>
 //       sale 0 si el archivo declara fuentes válidas; 1 si no declara ninguna, o si la sección tiene problemas (lo dice
-//       con un ::warning::: la noche sigue con lo de hoy).
+//       con un ::warning::: la noche sigue con lo de hoy). Con `--dashboard <carpeta>` y una sección que no se puede usar,
+//       deja igual <carpeta>/nightly-sources-<día>.json con cada fuente «no medida» y el motivo (el tablero no muestra el
+//       estado de ayer).
 //   node sources.js clone --dir <carpeta> --operations <operations.json> [--team-repos <archivo>] [--repos-json <archivo>]
 //                         [--dashboard <carpeta>] [--today AAAA-MM-DD]
 //       clona liviano (Markdown, .advisors/ y .tycon/: los patrones los pone este paso, no el conector) los repos de cada
@@ -42,6 +44,9 @@ OC.useSourceValidator((s, at) => TR.repoProblems({ ...s, repo: 'x' }, at, { plat
 
 // lo que baja el clon liviano: lo que leen las métricas de la noche
 const LIGHT_PATTERNS = Object.freeze(['**/*.md', '.advisors/**', '.tycon/**']);
+// el historial que leen las métricas (cada versión de cada Markdown: scripts/metrics/sdlc-stage-metrics.js): el conector
+// lo baja al clonar, porque el paso de las métricas no tiene la credencial de la fuente
+const HISTORY_PATHSPECS = Object.freeze(['*.md']);
 const CREDS_VAR = 'HARNESS_SOURCE_CREDENTIALS';
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 
@@ -153,14 +158,36 @@ function fuentesDe(ops, out) {
   const r = OC.load(ops);
   if (r.couldNotRead) {
     // sin el archivo no hay fuentes declaradas; con el archivo y sin poder leerlo, la noche no sabe si las hay
-    if (fs.existsSync(ops)) out(`::warning::no pude leer operations.json (${r.problems.map((p) => p.message).join('; ')}): la noche no mide las fuentes declaradas y sigue con lo de hoy`);
-    return {};
+    if (!fs.existsSync(ops)) return {};
+    out(`::warning::no pude leer operations.json (${r.problems.map((p) => p.message).join('; ')}): la noche no mide las fuentes declaradas y sigue con lo de hoy`);
+    return { problema: 'no pude leer operations.json' };
   }
-  if (!r.ok) { out(`::warning::operations.json no valida (${r.problems.map((p) => `${p.path || '(el archivo)'}: ${p.message}`).join('; ')}): la noche no mide las fuentes declaradas y sigue con lo de hoy`); return { problema: true }; }
+  if (!r.ok) { out(`::warning::operations.json no valida (${r.problems.map((p) => `${p.path || '(el archivo)'}: ${p.message}`).join('; ')}): la noche no mide las fuentes declaradas y sigue con lo de hoy`); return { problema: 'operations.json no valida' }; }
   const sp = r.sectionProblems && r.sectionProblems.nightly;
-  if (sp) { out(`::warning::operations.json: la sección nightly tiene problemas (${sp.map((p) => `${p.path}: ${p.message}`).join('; ')}): esta noche no mide las fuentes declaradas y sigue con lo de hoy`); return { problema: true }; }
+  if (sp) { out(`::warning::operations.json: la sección nightly tiene problemas (${sp.map((p) => `${p.path}: ${p.message}`).join('; ')}): esta noche no mide las fuentes declaradas y sigue con lo de hoy`); return { problema: 'la sección nightly de operations.json tiene problemas' }; }
   const sources = r.data && r.data.nightly && Array.isArray(r.data.nightly.sources) ? r.data.nightly.sources : [];
   return sources.length ? { sources } : {};
+}
+
+/** El archivo de estado del día: lo lee el tablero (scripts/nightly/dashboard/dashboard.js, `fichaFuentes`). */
+function escribirEstado(dashboard, today, fuentes) {
+  fs.mkdirSync(dashboard, { recursive: true });
+  fs.writeFileSync(path.join(dashboard, `nightly-sources-${today}.json`), `${JSON.stringify({ fecha: today, generado: new Date().toISOString(), fuentes }, null, 2)}\n`);
+}
+
+/**
+ * Una sección que no se puede usar deja igual el estado del día, con cada fuente «no medida» y el motivo: sin él, el
+ * tablero seguiría mostrando el de ayer («medida») hasta dos días. Las fuentes se nombran con lo que se pueda leer del
+ * archivo; si no se puede nombrar ninguna, queda una fila general.
+ */
+function estadoSinMedir(ops, problema) {
+  const crudo = leerJson(ops);
+  const lista = crudo && isObject(crudo.nightly) && Array.isArray(crudo.nightly.sources) ? crudo.nightly.sources : [];
+  const fila = (fuente, platform) => ({ fuente, platform, estado: 'no_medida', motivo: 'no_medido', detalle: `${problema}: esta noche no se midió`, repos: 0, faltan: [], fallidos: [] });
+  const nombradas = lista.filter((x) => isObject(x) && typeof x.platform === 'string' && /^[a-z][a-z0-9-]*$/.test(x.platform)).map((x) => {
+    try { return fila(labelOf(x), x.platform); } catch (_) { return null; }
+  }).filter(Boolean);
+  return nombradas.length ? nombradas : [fila('(las fuentes de la noche)', null)];
 }
 
 async function clone(o, env, out) {
@@ -193,7 +220,7 @@ async function clone(o, env, out) {
   for (const source of sources) {
     const label = labelOf(source);
     const credential = creds[source.platform];
-    const e = { fuente: label, platform: source.platform, estado: 'no_medida', motivo: null, detalle: null, repos: 0, faltan: [], fallidos: [] };
+    const e = { fuente: label, platform: source.platform, estado: 'no_medida', motivo: null, detalle: null, repos: 0, faltan: [], fallidos: [], sin_historial: [] };
     estado.push(e);
     const l = await P.run('repos.list', { source, ...(credential ? { credential } : {}) }, { env: envConector });
     if (!l.ok) {
@@ -217,24 +244,24 @@ async function clone(o, env, out) {
       const clave = `${source.platform}|${hostKey(source)}|${it.id.toLowerCase()}`;
       if (traidos.has(clave)) { repetidos.push(`${it.id} (ya lo trajo ${traidos.get(clave)})`); continue; }
       const folder = folderFor(source, it.id, nightPlatform, taken);
-      const c = await P.run('repos.clone', { source, id: it.id, dest: path.join(o.dest, folder), sparse: [...LIGHT_PATTERNS], ...(credential ? { credential } : {}) }, { env: envConector });
+      const c = await P.run('repos.clone', { source, id: it.id, dest: path.join(o.dest, folder), sparse: [...LIGHT_PATTERNS], history: [...HISTORY_PATHSPECS], ...(credential ? { credential } : {}) }, { env: envConector });
       if (!c.ok) { e.fallidos.push({ id: it.id, motivo: c.reason, detalle: P.limpiar(c.detail) }); taken.delete(folder.toLowerCase()); continue; }
       if (!c.value || !c.value.dir) { taken.delete(folder.toLowerCase()); continue; } // un repo vacío: nada que medir
+      // un historial que no se bajó entero: el repo se mide, y sus transiciones las métricas las dan por no medidas
+      if (c.value.history !== 'completa') e.sin_historial.push({ id: it.id, detalle: P.limpiar(c.value.historyDetail || 'el conector no bajó el historial') });
       index[folder] = { source: label, platform: source.platform, id: it.id, group: groupOf(source, it.id) };
       traidos.set(clave, label);
       e.repos++;
     }
     if (repetidos.length) out(`::warning::la fuente ${label} se pisa con otra: ${repetidos.join(', ')} — se miden una sola vez`);
-    e.estado = e.faltan.length || e.fallidos.length ? 'en_parte' : 'medida';
+    e.estado = e.faltan.length || e.fallidos.length || e.sin_historial.length ? 'en_parte' : 'medida';
+    if (e.sin_historial.length) out(`::warning::la fuente ${label}: repos con el historial incompleto: ${e.sin_historial.map((h) => `${h.id} (${h.detalle})`).join(', ')} — sus transiciones de estado quedan no medidas (medida en parte)`);
     if (e.faltan.length) out(`::warning::la fuente ${label} no devolvió repos declarados: ${e.faltan.join(', ')} — ¿el token los ve? La fuente queda medida en parte`);
     if (e.fallidos.length) out(`::warning::la fuente ${label}: repos que no se clonaron: ${e.fallidos.map((f) => `${f.id} (${f.motivo})`).join(', ')} — no se miden; los demás sí (medida en parte)`);
-    if (e.estado !== 'medida') { e.motivo = e.fallidos.length ? e.fallidos[0].motivo : 'no_medido'; e.detalle = [e.faltan.length ? `${e.faltan.length} declarado(s) que la fuente no devolvió` : null, e.fallidos.length ? `${e.fallidos.length} repo(s) sin clonar` : null].filter(Boolean).join(' · '); }
+    if (e.estado !== 'medida') { e.motivo = e.fallidos.length ? e.fallidos[0].motivo : 'no_medido'; e.detalle = [e.faltan.length ? `${e.faltan.length} declarado(s) que la fuente no devolvió` : null, e.fallidos.length ? `${e.fallidos.length} repo(s) sin clonar` : null, e.sin_historial.length ? `${e.sin_historial.length} repo(s) con el historial incompleto` : null].filter(Boolean).join(' · '); }
   }
   fs.writeFileSync(path.join(o.dest, 'sources-index.json'), `${JSON.stringify(index, null, 2)}\n`);
-  if (o.dashboard) {
-    fs.mkdirSync(o.dashboard, { recursive: true });
-    fs.writeFileSync(path.join(o.dashboard, `nightly-sources-${o.today}.json`), `${JSON.stringify({ fecha: o.today, generado: new Date().toISOString(), fuentes: estado }, null, 2)}\n`);
-  }
+  if (o.dashboard) escribirEstado(o.dashboard, o.today, estado);
   const n = (k) => estado.filter((x) => x.estado === k).length;
   out(`fuentes: ${estado.length} · medidas: ${n('medida')} · en parte: ${n('en_parte')} · no medidas: ${n('no_medida')} · repos clonados: ${Object.keys(index).length}`);
   return 0;
@@ -273,8 +300,9 @@ function skipped(ops, formato, out) {
   return 0;
 }
 
-function opciones(argv) {
-  const o = { dest: null, operations: null, teamRepos: null, reposJson: null, dashboard: null, today: new Date().toISOString().slice(0, 10), format: 'actions' };
+function opciones(argv, env = process.env) {
+  // el día: --today, o TYCON_TODAY (las pruebas que corren la noche entera), o el de hoy
+  const o = { dest: null, operations: null, teamRepos: null, reposJson: null, dashboard: null, today: env.TYCON_TODAY || new Date().toISOString().slice(0, 10), format: 'actions' };
   const k = { '--dir': 'dest', '--operations': 'operations', '--team-repos': 'teamRepos', '--repos-json': 'reposJson', '--dashboard': 'dashboard', '--today': 'today', '--format': 'format' };
   for (let i = 0; i < argv.length; i++) {
     if (!k[argv[i]]) return { error: `opción desconocida: ${argv[i]}` };
@@ -286,18 +314,22 @@ function opciones(argv) {
 
 async function main(argv, env = process.env, out = (l) => process.stdout.write(`${l}\n`)) {
   const [cmd, ...rest] = argv;
-  const USO = 'uso: sources.js declared|skipped --operations <f> · clone --dir <d> --operations <f> [--team-repos <f>] [--repos-json <f>] [--dashboard <d>] [--today <día>] · clone-declared <destino>';
+  const USO = 'uso: sources.js declared --operations <f> [--dashboard <d>] [--today <día>] · skipped --operations <f> · clone --dir <d> --operations <f> [--team-repos <f>] [--repos-json <f>] [--dashboard <d>] [--today <día>] · clone-declared <destino>';
   if (cmd === 'clone-declared') {
     if (!rest[0]) { process.stderr.write(`${USO}\n`); return 2; }
     return cloneDeclared(path.resolve(rest[0]), env, fs.readFileSync(0, 'utf8'), out);
   }
-  const o = opciones(rest);
+  const o = opciones(rest, env);
   if (o.error || !o.operations || !['declared', 'clone', 'skipped'].includes(cmd) || (cmd === 'clone' && !o.dest)) { process.stderr.write(`${o.error ? `${o.error}\n` : ''}${USO}\n`); return 2; }
-  if (cmd === 'declared') return fuentesDe(o.operations, out).sources ? 0 : 1;
+  if (cmd === 'declared') {
+    const f = fuentesDe(o.operations, out);
+    if (f.problema && o.dashboard) escribirEstado(path.resolve(o.dashboard), o.today, estadoSinMedir(o.operations, f.problema));
+    return f.sources ? 0 : 1;
+  }
   if (cmd === 'skipped') return skipped(o.operations, o.format, out);
   return clone({ ...o, dest: path.resolve(o.dest), dashboard: o.dashboard ? path.resolve(o.dashboard) : null }, env, out);
 }
 
-module.exports = { LIGHT_PATTERNS, readCredentials, connectorEnv, declaredFor: declaradosDe, labelOf, idOf, folderFor, groupOf, main };
+module.exports = { LIGHT_PATTERNS, HISTORY_PATHSPECS, readCredentials, connectorEnv, declaredFor: declaradosDe, labelOf, idOf, folderFor, groupOf, main };
 
 if (require.main === module) main(process.argv.slice(2)).then((c) => { process.exitCode = c; }, (e) => { process.stderr.write(`sources.js: ${P.limpiar(e && e.message)}\n`); process.exitCode = 1; });

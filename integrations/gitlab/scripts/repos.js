@@ -6,10 +6,12 @@
 // La lista: los proyectos del grupo y de sus subgrupos (`include_subgroups=true`), sin los archivados, de a 100 por
 // página, siguiendo la cabecera `x-next-page`, con un tope de páginas (TYCON_GITLAB_MAX_PAGES, por defecto 100) y uno de
 // tiempo total. Una página que falla o un tope alcanzado dejan la fuente no medida: nunca una lista más corta.
-// El clon: con la credencial sólo en la línea de comando (`-c http.extraheader`), sin seguir redirecciones
-// (`-c http.followRedirects=false`), liviano (los patrones que pasa el núcleo) o completo (la profundidad que pasa el
-// núcleo). Ningún `.git/config` queda con la credencial. La máscara de cada cabecera sale en la salida del paso antes de
-// usarla; la del token la pone quien lee el secreto (scripts/nightly/sources.js).
+// El clon: con la credencial sólo en el entorno de cada git (`http.extraheader` por GIT_CONFIG_*: ni en los argumentos,
+// que cualquier proceso ve, ni en el disco), sin seguir redirecciones (`http.followRedirects=false`), liviano (los
+// patrones que pasa el núcleo, más el historial de los archivos que nombra en `history`, que se baja ahora porque
+// después nadie tiene la credencial) o completo (la profundidad que pasa el núcleo, rama main). Ningún `.git/config`
+// queda con la credencial. La máscara de cada cabecera sale en la salida del paso antes de usarla; la del token la pone
+// quien lee el secreto (scripts/nightly/sources.js).
 
 const fs = require('fs');
 const path = require('path');
@@ -79,11 +81,11 @@ async function reposClone(args, ctx) {
   if (fs.existsSync(args.dest)) return { ok: false, reason: 'rechazado', detail: 'la carpeta del clon ya existe' };
   const b64 = Buffer.from(`oauth2:${token}`).toString('base64');
   enmascarar(b64);
-  const C = ['-c', 'http.followRedirects=false', '-c', `http.extraheader=Authorization: Basic ${b64}`];
-  // git en inglés: motivoDe lee sus errores por el texto. El lector sale de la raíz del arnés que da el núcleo (el
+  // git en inglés: motivoDe lee sus errores por el texto. Los lectores salen de la raíz del arnés que da el núcleo (el
   // conector puede vivir en otra carpeta)
-  const { idiomaFijo } = require(path.join(ctx.root, 'scripts', 'lib', 'clean-git-env.js'));
-  const env = idiomaFijo(ctx.env, { GIT_TERMINAL_PROMPT: '0' });
+  const { idiomaFijo, conConfigDeGit } = require(path.join(ctx.root, 'scripts', 'lib', 'clean-git-env.js'));
+  const env = conConfigDeGit(idiomaFijo(ctx.env, { GIT_TERMINAL_PROMPT: '0' }),
+    { 'http.followRedirects': 'false', 'http.extraheader': `Authorization: Basic ${b64}` });
   const git = (a) => spawnSync('git', a, { encoding: 'utf8', env, timeout: 10 * 60 * 1000, windowsHide: true });
   const fallar = (r) => {
     fs.rmSync(args.dest, { recursive: true, force: true });
@@ -94,10 +96,10 @@ async function reposClone(args, ctx) {
   const url = `${server}/${args.id}.git`;
   fs.mkdirSync(path.dirname(args.dest), { recursive: true });
   if (args.depth) {
-    const r = git([...C, 'clone', '--quiet', `--depth=${args.depth}`, url, args.dest]);
+    const r = git(['clone', '--quiet', `--depth=${args.depth}`, '--branch', 'main', url, args.dest]);
     return r.status === 0 ? { ok: true, value: { dir: args.dest } } : fallar(r);
   }
-  const r = git([...C, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', url, args.dest]);
+  const r = git(['clone', '--quiet', '--filter=blob:none', '--no-checkout', url, args.dest]);
   if (r.status !== 0) return fallar(r);
   if (git(['-C', args.dest, 'rev-parse', '-q', '--verify', 'HEAD']).status !== 0) {
     fs.rmSync(args.dest, { recursive: true, force: true });
@@ -105,8 +107,12 @@ async function reposClone(args, ctx) {
   }
   git(['-C', args.dest, 'sparse-checkout', 'init', '--no-cone']);
   fs.writeFileSync(path.join(args.dest, '.git', 'info', 'sparse-checkout'), `${args.sparse.join('\n')}\n`);
-  const c = git(['-C', args.dest, ...C, 'checkout', '--quiet']);
-  return c.status === 0 ? { ok: true, value: { dir: args.dest } } : fallar(c);
+  const c = git(['-C', args.dest, 'checkout', '--quiet']);
+  if (c.status !== 0) return fallar(c);
+  if (!args.history) return { ok: true, value: { dir: args.dest } };
+  const { bajarHistorial } = require(path.join(ctx.root, 'scripts', 'lib', 'clone-history.js'));
+  const h = bajarHistorial(git, args.dest, args.history);
+  return { ok: true, value: { dir: args.dest, history: h.ok ? 'completa' : 'incompleta', ...(h.ok ? {} : { historyDetail: h.detail }) } };
 }
 
 module.exports = { 'repos.list': reposList, 'repos.clone': reposClone };

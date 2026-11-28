@@ -606,7 +606,10 @@ async function hablar(ctx) {
     }
     if (!faltan.length && !x.desconocidos.length) continue;
     const partes = [];
-    if (x.desconocidos.length) partes.push(`repo(s) fuera de repos.json: ${x.desconocidos.join(', ')} — sin proyecto de Azure conocido, no se les pide`);
+    const deFuente = x.deFuente || [];
+    const fuera = x.desconocidos.filter((r) => !deFuente.includes(r));
+    if (fuera.length) partes.push(`repo(s) fuera de repos.json: ${fuera.join(', ')} — sin proyecto de Azure conocido, no se les pide`);
+    if (deFuente.length) partes.push(`repo(s) de una fuente: ${deFuente.join(', ')} — sin pedido por hallazgo: va a la ficha y al pedido de decisión del repo de operaciones`);
     if (postergadasIds.has(x.ficha.idFicha)) partes.push('postergada por el tope de la noche');
     // 🔴 El fallo que explica ESTA ausencia: de un proyecto que sigue sin pedido y de un paso que lo
     // impidió. Con «el primero de la ficha» saldría «falló administradores» sobre el proyecto donde el que
