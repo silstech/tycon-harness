@@ -334,7 +334,8 @@ SIN_MIRAR="$(cd "$RAIZ" && { git ls-files '*.sh'; git ls-files -z | xargs -0 gre
   | grep -E '\|\||2>[[:space:]]*/dev/null' | grep -vE '\[\[? +-[fer] ')"
 [ -z "$SIN_MIRAR" ] && ok "T22 ningún guion carga un archivo con respaldo sin mirar antes que esté" \
   || bad "T22 cargan un archivo con respaldo sin mirar antes que esté (el bash de la Mac corta el guion): $SIN_MIRAR"
-if [ -x /bin/bash ] && /bin/bash --version 2>/dev/null | head -1 | grep -q 'version 3\.'; then
+# la versión con el idioma fijo: con LANG=es_ES.UTF-8 bash escribe «versión» y el grep no la encontraba
+if [ -x /bin/bash ] && env -u LANGUAGE -u LC_MESSAGES LC_ALL=C LANG=C /bin/bash --version 2>/dev/null | head -1 | grep -q 'version 3\.'; then
   got="$(/bin/bash -c 'set -e; _hn=/no/existe/harness-node.sh; { [ -f "$_hn" ] && . "$_hn" 2>/dev/null; } || harness_node_bin() { echo node; }; harness_node_bin')"
   [ "$got" = node ] && ok "T22 con bash 3.2 y sin el ayudante, la forma que mira antes cae al respaldo" || bad "T22 con bash 3.2 la forma que mira antes no cayó al respaldo («${got}»)"
 fi

@@ -139,11 +139,8 @@ function ejecuta(f) {
 // Donde /bin/bash es otro (el agente Linux de la CI trae el 5.x, que lee distinto las llaves con paso y con ceros), la
 // columna «toca» no se puede re-medir: se dice y no cuenta como rojo ni como verde de T16 (decisión del dueño,
 // 2026-10-03, «por ahora»: [DEF-8.14-A-CI-LINUX]). En la plataforma de referencia, un shell que falta sigue saliendo ≠ 0.
-const bashVersion = (() => {
-  const r = spawnSync('/bin/bash', ['--version'], { encoding: 'utf8' });
-  const m = /version (\d+\.\d+)/.exec(r.stdout || '');
-  return m ? m[1] : null;
-})();
+// la versión, con el idioma fijo: con LANG=es_ES.UTF-8 bash escribe «versión» y la lectura no la encontraba
+const bashVersion = require(path.join(AQUI, 'scripts/tests/lib/bash-version.js')).versionDeBash();
 const offReference = bashVersion !== null && bashVersion !== '3.2';
 if (offReference) console.log(`⏭ shell-forms: T16 ShellFormsTable_TouchColumn_StillHolds no se mide acá: /bin/bash es ${bashVersion} y la referencia es zsh + bash 3.2 (las Mac del equipo). T7-T15 sí corrieron.`);
 else if (faltan.length) nm(`T16 ShellFormsTable_TouchColumn_StillHolds: falta ${faltan.join(', ')}`);
