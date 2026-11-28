@@ -1030,3 +1030,64 @@ test('T48 CuentaSinPesos_NoEsUnDestino @A213 — el > de (( … )) compara; lo q
     assert.strictEqual(r.status, 2, `frena en ${herramienta}\n${r.stderr}`);
   }
 });
+
+// T49 PowerShellConComando_Y_ForDeCuentaSinPuntoYComa @A216
+// 🔴 Falla con: lo que corre PowerShell con `-Command` (o `-c`) sin leer como un comando más (`pwsh -Command
+// '((cp a h.md))'` copiaba a la historia), o el cuerpo de un `for ((…))` sin `;` antes del `do` (o del `{`, o sin nada
+// en zsh) leído como argumentos del `for`.
+test('T49 PowerShellConComando_Y_ForDeCuentaSinPuntoYComa @A216 — lo de adentro corre; las cuentas que no escriben pasan', () => {
+  const c = corral();
+  for (const cmd of [`pwsh -Command '((cp README.md ${H}))'`, `pwsh -Command "((cp README.md ${H}))"`,
+    `pwsh -c 'cp README.md ${H}'`, `powershell -Command '(cp README.md ${H})'`, `pwsh -NoProfile -Command '((cp README.md ${H}))'`,
+    `pwsh.exe -command 'cp README.md ${H}'`, `/usr/local/bin/pwsh -Command 'cp README.md ${H}'`, `pwsh -Command cp README.md ${H}`,
+    `pwsh -Command '((x > ${H}))'`, `pwsh -NonInteractive -c "Copy-Item README.md ${H}"`, `pwsh -cwa 'cp README.md ${H}'`,
+    `for ((i=0;i<1;i++)) do cp README.md ${H}; done`, `for ((i=0;i<1;i++))do cp README.md ${H}; done`,
+    `for ((i=0;i<1;i++)) { cp README.md ${H}; }`, `for ((i=0;i<1;i++)) cp README.md ${H}`, `for (( ; ; )) do cp README.md ${H}; break; done`,
+    `bash -c 'for ((i=0;i<1;i++)) do cp README.md ${H}; done'`, `for ((i=0;i<1;i++)) do mv README.md ${H}; done`,
+    `if true; then for ((i=0;i<1;i++)) do cp README.md ${H}; done; fi`, `for ((i=0;i<1;i++)) do rm ${H}; done`,
+    `bash -c "for ((i=0;i<1;i++)) do rm ${H}; done"`, `pwsh -Command "rm ${H}"`,
+    `pwsh -EncodedCommand ${Buffer.from(`cp README.md ${H}`, 'utf16le').toString('base64')}`,
+    // (revisión de Fable) las redirecciones de afuera no son destinos de la copia; las variables de afuera valen; la entrada
+    `pwsh -Command 'cp README.md ${H}' 2>/dev/null`, `pwsh -Command 'cp README.md ${H}' 2>&1 | tail -5`,
+    `F=${H}; pwsh -c "cp README.md $F"`, `F=${H}; pwsh -c 'rm $F'`, `echo 'cp README.md ${H}' | pwsh -Command -`,
+    `pwsh <<'EOF'\ncp README.md ${H}\nEOF`,
+    // el `for` en una función, un `case`, un `<(…)`, un `"$(…)"`, tres anidados, detrás de un comentario con apóstrofo
+    `f() { for ((i=0;i<1;i++)) do cp README.md ${H}; done; }; f`, `case x in x) for ((i=0;i<1;i++)) do cp README.md ${H}; done;; esac`,
+    `cat <(for ((i=0;i<1;i++)) do cp README.md ${H}; done)`, `x="$(for ((i=0;i<1;i++)) do cp README.md ${H}; done)"`,
+    `for ((i=0;i<1;i++)) do for ((j=0;j<1;j++)) do for ((k=0;k<1;k++)) do cp README.md ${H}; done; done; done`,
+    `# don't\nfor ((i=0;i<1;i++)) do cp README.md ${H}; done`,
+    // (segunda vuelta de Fable) un `for ((` citado o fuera de lugar no corta los argumentos; las entradas de afuera de pwsh
+    `rm $(: $(: 'for ((')) ${H}`, `cp README.md $(: "$(: 'for ((')") ${H}`, `cat README.md | tee $(: $(: '# for ((')) ${H}`,
+    `touch fora; cp for((a)) ${H}`, `pwsh -c 'cp README.md ${H}' </dev/null`, `pwsh -c 'cp README.md ${H}' <<< x`,
+    `pwsh -c 'cp README.md ${H}' > >(cat)`, `pwsh -c 'cp README.md ${H}' {fd}>/tmp/x`,
+    // (tercera vuelta) se lee tal cual y con el `;`: ni un `for ((` citado corta argumentos ni uno real se esconde
+    `cp README.md $(: $(: $'\\'' '; for ((' )) ${H}`, `rm \${x} for((a))(N) ${H}`, `echo $'it\\'s' ; for ((i=0;i<1;i++)) do cp README.md ${H}; done`,
+    `echo a\\ #; for ((i=0;i<1;i++)) do cp README.md ${H}; done`, `x=\${y/ #/}; for ((i=0;i<1;i++)) do cp README.md ${H}; done`,
+    `cat <<'E-1'\ndon't\nE-1\nfor ((i=0;i<1;i++)) do cp README.md ${H}; done`, `repeat 1 for ((i=0;i<1;i++)) do cp README.md ${H}; done`,
+    `pwsh -c 'cp README.md ${H}' <<EOF\ndatos\nEOF`, `pwsh -c 'cp README.md ${H}' < $(mktemp)`,
+    // (cuarta vuelta) un `for ((` citado antes y un `))` citado después no saltean al `for` de verdad
+    `: 'for ((' ; for ((i=0;i<1;i++)) do rm ${H}; done; : '))' x`, `# for ((\nfor ((i=0;i<1;i++)) do rm ${H}; done # )) x`,
+    `: 'for ((' ; : 'for ((' ; for ((i=0;i<1;i++)) do cp README.md ${H}; done; : '))' x ; : '))' y`,
+    // (quinta vuelta) ni con el señuelo adentro del cuerpo de un `for` real sin `;`
+    `for ((i=0;i<1;i++)) do rm $(: $(: 'for ((')) ${H}; done`, `for ((i=0;i<1;i++)) do cp README.md $(: "$(: 'for ((')") ${H}; done`,
+    `for ((i=0;i<1;i++)) { rm $(: $(: 'for ((')) ${H}; }`, `bash -c 'for ((i=0;i<1;i++)) do rm $(: $(: "for ((")) ${H}; done'`,
+    // (sexta vuelta) una lectura por cada cabecera sola: ni comillas en la cuenta real ni señuelos con comillas pares
+    `for ((i=0;i<$(echo "it's" | wc -l);i++)) do cp README.md ${H}; done`, `for ((i=0;i<1;i++ $(: \\') )) do rm ${H}; done`,
+    `for ((i=0;i<1;i++)) do rm $(: $(: 'for ((' \\' )) ${H}; done`, `: 'for ((' \\' ; for ((i=0;i<1;i++)) do rm $(: ')' ')' ) ${H}; done`,
+    `for ((i=0;i<1;i++)) do for ((j=0;j<1;j++)) do rm $(: $(: 'for ((')) ${H}; done; done`,
+    // con más cabeceras sin `;` que el tope no se lee qué corre: frena
+    `${'for ((i=0;i<1;i++)) do echo $i; done; '.repeat(25)}cp README.md ${H}`,
+    // (séptima vuelta) la cabecera partida en dos renglones
+    `for \\\n((i=0;i<1;i++)) do cp README.md ${H}; done`,
+  ]) frena(c, cmd);
+  for (const cmd of [`for ((i=0;i<3;i++)) do echo $i; done`, `for ((i=5;i>${H};i--)) do echo $i; done`,
+    `for ((i=0;i<${H};i++)) { echo $i; }`, `for ((i=0;i<${H};i++))do echo $i; done`, `pwsh -Command 'Get-Content README.md'`,
+    `pwsh -Command 'cp README.md notas.txt'`, `pwsh -Command '((x > notas.txt))'`, `echo "pwsh -Command 'cp README.md ${H}'"`,
+    `git commit -m "for ((i=0;i<1;i++)) do cp README.md ${H}; done"`, `echo 'for ((i=0;i<1;i++)) do cp README.md ${H}; done'`,
+    `pwsh -Command 'Get-Content README.md' 2>&1 | tail -5`, `pwsh -File script.ps1 <<'EOF'\nhola\nEOF`,
+    // nueve bucles sin `;` que no escriben, o nueve `for ((` en un texto, se leen (el tope es 24)
+    `${'for ((i=0;i<3;i++)) do echo $i; done; '.repeat(9)}echo fin`, `grep -c ${"-e 'for ((a)) b' ".repeat(9)}README.md`,
+    // (un texto pegado a su opción, `-m'…'`, o un comentario que copian literalmente un `for ((…)) do cp … h.md` pueden
+    // frenar: la lectura con el `;` es en todo el texto, el lado seguro)
+  ]) pasa(c, cmd);
+});
