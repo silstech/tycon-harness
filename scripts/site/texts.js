@@ -298,7 +298,7 @@ const TEXTOS = {
   'proyectos.est.sinRango': { es: 'sin rango', en: 'no range' },
   'proyectos.est.encima': { es: 'encima por {por}', en: 'above by {por}' },
   'proyectos.est.debajo': { es: 'debajo por {por}', en: 'below by {por}' },
-  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} missing' },
+  'proyectos.est.abierta': { es: 'abierta: faltan {n}', en: 'open: {n} left', uno: { es: 'abierta: falta 1', en: 'open: 1 left' } },
   'proyectos.est.totalDelProducto': { es: 'Total del producto', en: 'Product total' },
   'proyectos.est.parcial': { es: '(parcial: falta alguna épica)', en: '(partial: an epic is missing)' },
   'proyectos.est.porUnidad': { es: 'sin tasa a horas, por unidad: {sumas}', en: 'no hourly rate, per unit: {sumas}' },
@@ -369,7 +369,7 @@ const TEXTOS = {
   'arnes.alDia': { es: 'al día (del {fecha})', en: 'up to date (from {fecha})' },
   'arnes.banco': { es: 'Banco de controles', en: 'Controls bench' },
   'arnes.bancoRojos': { es: '{n} casos rojos (del {fecha})', en: '{n} red cases (from {fecha})' },
-  'arnes.bancoRojosDe': { es: '{n} casos rojos, de {total} (del {fecha})', en: '{n} red cases, out of {total} (from {fecha})' },
+  'arnes.bancoRojosDe': { es: '{n} casos rojos, de {total} (del {fecha})', en: '{n} red cases, out of {total} (from {fecha})', uno: { es: '1 caso rojo, de {total} (del {fecha})', en: '1 red case, out of {total} (from {fecha})' } },
   'arnes.suites': { es: 'Suites de prueba', en: 'Test suites' },
   'arnes.suitesRojas': { es: '{rojas} rojas · {sinMedir} sin medir, de {total}', en: '{rojas} red · {sinMedir} not measured, out of {total}' },
   'arnes.suitesNuevas': { es: '{nuevas} nuevas desde anoche, de {rojas} rojas · {sinMedir} sin medir, de {total}', en: '{nuevas} new since last night, out of {rojas} red · {sinMedir} not measured, out of {total}' },
@@ -587,7 +587,7 @@ const TEXTOS = {
   'mant.marcha.intro': { es: 'Ya decidido: cada una tiene su tarea, o se la crea la misma revisión de la noche que aplica la decisión. No tenés que hacer nada. Una ficha puede estar acá y en el historial de decisiones: ahí se ve quién la decidió y cuándo; acá, su tarea.', en: "Already decided: each one has its work item, or the same night review that applies the decision creates it. Nothing for you to do. A finding can be both here and in the decision history: there you see who decided it and when; here, its work item." },
   'mant.marcha.tarea': { es: 'Tarea {numero}', en: 'Work item {numero}' },
   'mant.marcha.tareaProyecto': { es: 'Tarea {numero} ({proyecto})', en: 'Work item {numero} ({proyecto})' },
-  'mant.marcha.tareas': { es: '{n} tareas', en: '{n} work items' },
+  'mant.marcha.tareas': { es: '{n} tareas', en: '{n} work items', uno: { es: '1 tarea', en: '1 work item' } },
   'mant.marcha.asignada': { es: 'asignada a {quien}', en: 'assigned to {quien}' },
   'mant.marcha.sinAsignar': { es: 'sin asignar', en: 'unassigned' },
   'mant.marcha.asignadaSinNombre': { es: 'asignada: su nombre en la plataforma es un correo y acá no se muestra', en: 'assigned: their name on the platform is an email address and is not shown here' },
@@ -2883,7 +2883,15 @@ function problemasDeLaTabla(tabla) {
       if (typeof v[i] !== 'string' || !v[i].trim()) out.push(`${k}: falta el texto en «${i}»`);
       else if (v[i].includes('<')) out.push(`${k}: el texto en «${i}» trae HTML`);
     }
-    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i)) out.push(`${k}: idioma desconocido «${i}»`);
+    // la forma `uno` (el singular, cuando `n` es 1): los dos idiomas, sin HTML, los mismos valores, y sólo en un texto con {n}
+    if (Object.prototype.hasOwnProperty.call(v, 'uno')) {
+      const u = v.uno;
+      if (!u || typeof u !== 'object' || IDIOMAS.some((i) => typeof u[i] !== 'string' || !u[i].trim()) || Object.keys(u).some((i) => !IDIOMAS.includes(i))) out.push(`${k}: la forma «uno» no es { es, en }`);
+      else if (IDIOMAS.some((i) => u[i].includes('<'))) out.push(`${k}: la forma «uno» trae HTML`);
+      else if (valoresDe(u.es).join(',') !== valoresDe(u.en).join(',')) out.push(`${k}: la forma «uno» no tiene los mismos valores en los dos idiomas`);
+      if (typeof v.es === 'string' && !v.es.includes('{n}')) out.push(`${k}: la forma «uno» sólo va en un texto con {n}`);
+    }
+    for (const i of Object.keys(v)) if (!IDIOMAS.includes(i) && i !== 'uno') out.push(`${k}: idioma desconocido «${i}»`);
     if (typeof v.es === 'string' && typeof v.en === 'string' && valoresDe(v.es).join(',') !== valoresDe(v.en).join(',')) out.push(`${k}: los valores con nombre no son los mismos en los dos idiomas (${valoresDe(v.es).join(', ') || 'ninguno'} / ${valoresDe(v.en).join(', ') || 'ninguno'})`);
   }
   return out;
@@ -2896,7 +2904,9 @@ function problemasDeLaTabla(tabla) {
 function t(idioma, clave, valores = {}) {
   const e = TEXTOS[clave];
   if (!e) throw new Error(`texts.js: no hay texto para la clave «${clave}»`);
-  const s = e[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
+  // una clave con forma `uno` la usa cuando la cantidad `n` es 1 («1 tarea», no «1 tareas»)
+  const forma = e.uno && Number(valores.n) === 1 && String(valores.n).trim() !== '' ? e.uno : e;
+  const s = forma[IDIOMAS.includes(idioma) ? idioma : POR_DEFECTO];
   return s.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (m, n) => (Object.prototype.hasOwnProperty.call(valores, n) ? String(valores[n]) : m));
 }
 
