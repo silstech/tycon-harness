@@ -663,9 +663,12 @@ function equipo(cfg, buzon = { estado: 'no_aplica' }) {
     //    de los otros cinco son «las veces que el comando les competía». Dividir la suma de unos por
     //    la suma de los otros produce un número que no significa nada. La proporción vive por freno,
     //    en el detalle, donde cada uno lleva SU denominador.
+    // el desglose también como datos (el sitio lo muestra en los dos idiomas; el detalle es texto en castellano)
+    const sumar = (f) => Object.keys(fb.porDim).reduce((a, k) => a + f(k), 0);
     frenos = medida(fb.num, fb.num, fb.num, {
       unidad: 'conteo', den_etiqueta: 'veces que un freno frenó',
       detalle: `${ventana}${filas ? ' · ' + filas : ''}${parcial(fb, 'frenos previos')}`,
+      partes: [{ clave: 'frenaron', n: fb.num }, { clave: 'saltearon', n: sumar(escapesDe) }, { clave: 'avisaron', n: sumar(avisosDe) }],
     });
   }
   // ── cuántas evidencias rechazan los hooks del CIERRE ─────────────────────────────
@@ -699,9 +702,11 @@ function equipo(cfg, buzon = { estado: 'no_aplica' }) {
   else if (sinMaquinas || ca.midieron === 0) carriles = noMedida(sinMaquinas ? 'ninguna máquina reportó sus registros' : 'ninguna máquina subió todavía el carril de sus commits');
   else if (ca.num < piso) carriles = noMedida(`por debajo del piso (${ca.num} commits en la ventana; hacen falta ${piso})`);
   else {
+    // cuántos por carril, como datos: los tres del vocabulario, en ese orden (un carril que no es de la lista no viaja)
     carriles = medida(ca.num, ca.num, ca.num, {
       unidad: 'conteo', den_etiqueta: 'commits hechos desde una sesión',
       detalle: `${ventana} · ${lasQueMas(ca.porDim)}${parcial(ca, 'carriles')}`,
+      partes: ['pipeline', 'adhoc', 'ninguno'].filter((k) => Object.prototype.hasOwnProperty.call(ca.porDim, k)).map((k) => ({ clave: k, n: ca.porDim[k].num })),
     });
   }
   // El 75 % sobre las LÍNEAS TOCADAS, en observación. Cada corrida de test-gate deja una línea
@@ -970,6 +975,45 @@ const SRC = path.dirname(RAIZ); // la carpeta que contiene a todos los repos del
 const REPOS_JSON = 'scripts/nightly/dependencies/repos.json';
 /** El motivo de una ficha que cuenta productos y no tiene ninguno: el de la lista de repos, o que no nombra productos. */
 const sinProductos = (ctx) => ctx.reposMotivo || `${REPOS_JSON} no nombra ningún producto (la clave «producto» de cada repo)`;
+
+/**
+ * La ficha «Productos sin pipeline de producción», de la deuda declarada (scripts/ci/pipeline-debt.json, las entradas
+ * PROD-PIPELINE-*) cruzada con los despliegues que la organización declaró en Configuración. Una deuda de un producto al
+ * que Despliegues le declara producción no cuenta (la deuda quedó vieja) y el detalle lo dice; la que cuenta se nombra
+ * como la lista de productos. Sin la deuda, los despliegues solos dicen qué productos no tienen producción.
+ */
+function fichaSinPipeline(ctx) {
+  const { claveDeProducto: clave } = require('./common');
+  const despliegues = ctx.despliegues ? new Map(Object.entries(ctx.despliegues).map(([k, v]) => [clave(k), v])) : null;
+  const conProduccion = (p) => { const d = despliegues && despliegues.get(clave(p)); return !!(d && Array.isArray(d.production) && d.production.length); };
+  if (!ctx.debt || !Array.isArray(ctx.debt.debt)) {
+    if (despliegues && ctx.productos.length) {
+      // dos casos distintos, que cuentan los dos y se nombran aparte: el declarado sin producción y el que no se declaró
+      const sinDeclarar = ctx.productos.filter((p) => !despliegues.has(clave(p)));
+      const sinProd = ctx.productos.filter((p) => despliegues.has(clave(p)) && !conProduccion(p));
+      const partes = [sinProd.length ? `sin producción: ${sinProd.join(' · ')}` : '', sinDeclarar.length ? `sin declarar en Despliegues: ${sinDeclarar.join(' · ')}` : ''].filter(Boolean);
+      return medida(sinProd.length + sinDeclarar.length, ctx.productos.length, ctx.productos.length, { unidad: 'conteo', den_etiqueta: 'productos declarados',
+        detalle: `${partes.join(' — ')} · de los despliegues declarados en Configuración` });
+    }
+    // con despliegues declarados, lo que falta es la lista de productos
+    if (despliegues) return noMedida(sinProductos(ctx));
+    return noMedida('falta scripts/ci/pipeline-debt.json (la deuda declarada de pipelines) y no hay despliegues declarados en Configuración → Despliegues');
+  }
+  if (!ctx.productos.length) return noMedida(sinProductos(ctx));
+  const abiertas = ctx.debt.debt.filter((x) => /^PROD-PIPELINE-/.test(String(x.id)));
+  // cada deuda, con el producto de la lista que nombra (o como la escribe, si no está en la lista)
+  const deudas = abiertas.map((x) => {
+    const crudo = String(x.id).replace(/^PROD-PIPELINE-/, '').replace(/-\d+$/, '');
+    const producto = ctx.productos.find((p) => clave(p) === clave(crudo));
+    return { nombre: producto || crudo, revision: x.revision || null, vieja: !!(producto && conProduccion(producto)) };
+  });
+  const vigentes = deudas.filter((d) => !d.vieja);
+  const viejas = deudas.filter((d) => d.vieja);
+  const rev = vigentes.map((d) => d.revision).filter(Boolean).sort()[0];
+  const partes = [vigentes.length ? vigentes.map((d) => d.nombre).join(' · ') + (rev ? ` · deuda con revisión ${rev}` : '') : 'ninguno',
+    viejas.length ? `deuda que ya no corresponde: ${viejas.map((d) => d.nombre).join(' · ')} (Despliegues le declara producción)` : ''].filter(Boolean);
+  return medida(vigentes.length, ctx.productos.length, ctx.productos.length, { unidad: 'conteo', den_etiqueta: 'productos declarados', detalle: partes.join(' — ') });
+}
 function contexto() {
   const rj = datoDelArbol(...REPOS_JSON.split('/'));
   const repos = rj && Array.isArray(rj.repos) ? rj.repos : (Array.isArray(rj) ? rj : []);
@@ -1323,6 +1367,9 @@ function extra(por, ctx, cfg) {
     const lineas = [];
     let comparables = 0;
     let conCarpeta = 0;
+    // de los comparables, en cuántos vuelve menos lo que pasó por el pipeline: el desglose como datos, sin nombres de
+    // repos ni proporciones sumadas entre productos
+    let vuelveMenos = 0;
     for (const r of rs) {
       const x = r.rework_por_carril;
       if (!x) continue;
@@ -1333,6 +1380,7 @@ function extra(por, ctx, cfg) {
       // `&lt;b&gt;` y el `--json` llevaría etiquetas.
       if (con.den >= nMin && sin.den >= nMin) {
         comparables += 1;
+        if (con.num / con.den < sin.num / sin.den) vuelveMenos += 1;
         lineas.push(`${nombre(r)}: con ejecución volvieron ${con.num} de ${con.den} (${pctDe(con)}) · sin constancia ${sin.num} de ${sin.den} (${pctDe(sin)})`);
       } else {
         const falta = [con.den < nMin ? `${nMin - con.den} con ejecución` : null, sin.den < nMin ? `${nMin - sin.den} sin constancia` : null].filter(Boolean).join(' y ');
@@ -1343,7 +1391,8 @@ function extra(por, ctx, cfg) {
     if (!conCarpeta) return noMedida(`ningún repo guarda las ejecuciones del pipeline todavía (${rs.length} medidos): no hay con qué separar los carriles`);
     const detalle = `${lineas.join(' · ')}${sinCarpeta ? ` · ${sinCarpeta} repo(s) no guardan ejecuciones: no se comparan` : ''}`;
     if (!comparables) return noMedida(`ningún repo llega al mínimo de ${nMin} stories cerradas por grupo — ${detalle}`, { detalle });
-    return medida(comparables, comparables, conCarpeta, { unidad: 'conteo', den_etiqueta: `repos comparables de ${conCarpeta} que guardan ejecuciones · mínimo ${nMin} por grupo`, detalle });
+    return medida(comparables, comparables, conCarpeta, { unidad: 'conteo', den_etiqueta: `repos comparables de ${conCarpeta} que guardan ejecuciones · mínimo ${nMin} por grupo`, detalle,
+      partes: [{ clave: 'vuelve_menos', n: vuelveMenos }, { clave: 'no_vuelve_menos', n: comparables - vuelveMenos }] });
   });
 
   m.rework_top = desde(sdlc, (d) => {
@@ -1359,29 +1408,7 @@ function extra(por, ctx, cfg) {
     return { ...ratio(ok.length, ctx.productos.length), den_etiqueta: 'productos declarados', detalle: ok.length ? `vigilados: ${ok.join(' · ')}` : 'ninguno' };
   });
 
-  m.sin_prod = (() => {
-    if (!ctx.debt || !Array.isArray(ctx.debt.debt)) {
-      // sin la deuda, los despliegues declarados ya dicen qué productos no tienen producción (o no declararon ninguno)
-      if (ctx.despliegues && ctx.productos.length) {
-        const declarados = new Map(Object.entries(ctx.despliegues).map(([k, v]) => [k.toLowerCase(), v]));
-        // dos casos distintos, que cuentan los dos y se nombran aparte: el declarado sin producción y el que no se declaró
-        const sinDeclarar = ctx.productos.filter((p) => !declarados.has(String(p).toLowerCase()));
-        const sinProd = ctx.productos.filter((p) => { const d = declarados.get(String(p).toLowerCase()); return d && (!Array.isArray(d.production) || !d.production.length); });
-        const partes = [sinProd.length ? `sin producción: ${sinProd.join(' · ')}` : '', sinDeclarar.length ? `sin declarar en Despliegues: ${sinDeclarar.join(' · ')}` : ''].filter(Boolean);
-        return medida(sinProd.length + sinDeclarar.length, ctx.productos.length, ctx.productos.length, { unidad: 'conteo', den_etiqueta: 'productos declarados',
-          detalle: `${partes.join(' — ')} · de los despliegues declarados en Configuración` });
-      }
-      // con despliegues declarados, lo que falta es la lista de productos
-      if (ctx.despliegues) return noMedida(sinProductos(ctx));
-      return noMedida('falta scripts/ci/pipeline-debt.json (la deuda declarada de pipelines) y no hay despliegues declarados en Configuración → Despliegues');
-    }
-    if (!ctx.productos.length) return noMedida(sinProductos(ctx));
-    const abiertas = ctx.debt.debt.filter((x) => /^PROD-PIPELINE-/.test(String(x.id)));
-    const nombres = abiertas.map((x) => String(x.id).replace(/^PROD-PIPELINE-/, '').replace(/-\d+$/, '').toLowerCase());
-    const rev = abiertas.map((x) => x.revision).filter(Boolean).sort()[0];
-    return medida(abiertas.length, ctx.productos.length, ctx.productos.length, { unidad: 'conteo', den_etiqueta: 'productos declarados',
-      detalle: `${nombres.join(' · ')}${rev ? ` · deuda con revisión ${rev}` : ''}` });
-  })();
+  m.sin_prod = fichaSinPipeline(ctx);
 
   // La familia del capturador: contrato y fechas, con loadAll (no se reimplementa el parser), sobre la raíz y merges/,
   // un registro por merge.
@@ -1912,5 +1939,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { colectar, encuentra, render, equipo, local, pasosPorCorrida, ratio, medida, noMedida, edadDias, estadoDelBuzon, selloDe, MOTIVOS_BUZON, fichaDespliegues, fichaVueltasAtras,
+module.exports = { fichaSinPipeline, colectar, encuentra, render, equipo, local, pasosPorCorrida, ratio, medida, noMedida, edadDias, estadoDelBuzon, selloDe, MOTIVOS_BUZON, fichaDespliegues, fichaVueltasAtras,
   DENOMINADORES: require('./common').DENOMINADORES };

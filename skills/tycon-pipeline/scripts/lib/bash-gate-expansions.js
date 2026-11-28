@@ -431,20 +431,24 @@ function constanciasDeOtraRama(c, args, base, isControlApproval, extra = {}) {
   })();
   const blob = (ref, p) => (git(['rev-parse', '--verify', '-q', `${ref}:${p}`]) || '').trim() || null;
   // las rutas de constancias que quedan distintas al pasar de `desde` a `hasta`, salvo las que se borran
-  const comparar = (desde, hasta, nombre, rutas = []) => {
+  // `acepta(p)`: la constancia `p` que trae `hasta` ya se sabe buena (el avance hasta la rama del remoto, más abajo)
+  const comparar = (desde, hasta, nombre, rutas = [], acepta = null) => {
     if (/^-/.test(desde) || /^-/.test(hasta)) { out.push(`no pude ver qué constancias trae ${nombre}`); return; }
     const r = git(['diff', '--name-only', '--no-renames', '--diff-filter=d', '--end-of-options', desde, hasta, ...(rutas.length ? ['--', ...rutas] : [])]);
     if (r === null) { out.push(`no pude ver qué constancias trae ${nombre}${principal ? '' : ' (la rama principal no está confirmada: git fetch)'}`); return; }
     for (const p of r.split(/\r?\n/).filter(Boolean).filter((x) => isControlApproval(x))) {
       const traida = blob(hasta, p);
       if (principal && traida && blob(principal, p) === traida) continue;
+      if (acepta && acepta(p)) continue;
       out.push(`${p} desde ${nombre}${principal ? '' : ' (la rama principal no está confirmada: corré git fetch)'}`);
     }
   };
-  const fusion = (ref, desde = 'HEAD') => {
+  // el avance hasta la copia de la propia rama de origin con constancias firmadas en otra máquina (A211)
+  const delRemoto = (ref, mb) => require('./bash-gate-remote-copy.js').aceptaDelRemoto({ git, commit, blob, args, sueltas, comando: extra.comando ?? tramo, ref, mb });
+  const fusion = (ref, desde = 'HEAD', { avanceDelRemoto = false } = {}) => {
     const mb = (git(['merge-base', '--end-of-options', desde, ref]) || '').trim() || null;
     if (!mb) { out.push(`no pude ver qué constancias trae ${ref}`); return; }
-    comparar(mb, ref, ref);
+    comparar(mb, ref, ref, [], avanceDelRemoto && desde === 'HEAD' ? delRemoto(ref, mb) : null);
   };
   // mover la rama `nombre` (o crearla) a `ref`: lo que trae es lo que cambia en su historia
   const mover = (nombre, ref) => {
@@ -563,7 +567,7 @@ function constanciasDeOtraRama(c, args, base, isControlApproval, extra = {}) {
   if (c === 'git read-tree' && args.some((w) => /^--prefix(?:=|$)/.test(w))) { out.push('con --prefix las rutas quedan en otra carpeta: no pude ver qué constancias trae'); return out; }
   for (const e of execs) out.push(...anidado(e));
   if (c === 'git merge') {
-    for (const ref of sueltas.length ? sueltas : ['@{upstream}']) fusion(ref);
+    for (const ref of sueltas.length ? sueltas : ['@{upstream}']) fusion(ref, 'HEAD', { avanceDelRemoto: true });
   } else if (c === 'git rebase') {
     // la rama queda encima de la de arriba y trae todo lo que esa tiene; con `<arriba> <rama>`, se rebasa esa rama
     if (args.some((w) => /^(?:-i|--interactive)$/.test(w) || /^-[A-Za-z]*i[A-Za-z]*$/.test(w))) {
@@ -584,7 +588,10 @@ function constanciasDeOtraRama(c, args, base, isControlApproval, extra = {}) {
     for (const ref of destino) {
       const local = /^refs\/heads\//.test(ref) || remoto === '.';
       const esPrincipal = /^refs\/remotes\/origin\/(?:main|master)$/.test(ref) && remoto !== '?';
-      if (!local && !esPrincipal) { out.push(`${ref.replace(/^refs\/remotes\//, '')} se baja recién al correr: traela con git fetch y git merge, que el freno puede mirar`); continue; }
+      // la de origin se trae con un fetch y el avance rápido hasta su copia, que el freno mira (y deja pasar si sus
+      // constancias coinciden con su huella)
+      const corto = ref.replace(/^refs\/remotes\//, '');
+      if (!local && !esPrincipal) { out.push(/^refs\/remotes\/origin\//.test(ref) && remoto !== '?' ? `${corto} se baja recién al correr: traela con git fetch origin y después git merge --ff-only ${corto}, que el freno puede mirar` : `${corto} se baja recién al correr: traela con git fetch y git merge, que el freno puede mirar`); continue; }
       if (!commit(ref)) { out.push(`no pude ver qué constancias trae ${ref}: traela con git fetch y git merge, que el freno puede mirar`); continue; }
       fusion(ref);
     }
@@ -1411,12 +1418,44 @@ function inlineStoryText(cmd, declares) {
  * Fuera de Windows es lo de siempre.
  */
 function resolveTarget(target, cwd, platform = process.platform, { homeVariable = false } = {}) {
-  const P = platform === 'win32' ? path.win32 : path;
+  const P = platform === 'win32' ? path.win32 : path.posix;
   let expanded = String(target).replace(/^~(?=\/|$)/, os.homedir());
   // `$HOME` sólo lo expande quien ya lo expandía (los destinos de una escritura): acá no cambia qué se expande
   if (homeVariable) expanded = expanded.replace(/^\$\{?HOME\}?(?=\/|$)/, os.homedir());
   expanded = nativePath(expanded, platform);
-  return P.isAbsolute(expanded) ? expanded : P.resolve(nativePath(cwd, platform), expanded);
+  if (P.isAbsolute(expanded)) return expanded;
+  return platform === 'win32' ? relativaDeGitBash(expanded, nativePath(cwd, platform), String(target).includes('\\')) : P.resolve(nativePath(cwd, platform), expanded);
+}
+
+/**
+ * Una ruta relativa en Windows, resuelta como la resuelve Git Bash, que es con lo que corre el comando: contra la carpeta
+ * en su forma de Git Bash (`C:\lab` es `/c/lab`), donde subir más allá de la unidad se queda en la raíz y desde la raíz
+ * cada unidad es una carpeta con su letra. Node la resuelve distinto (`..` se queda en `C:\`, y `c\x` desde `C:\` es
+ * `C:\c\x`): medido en Windows, `../../../../c/Windows/x` desde `C:\lab` y `c/Windows/x` desde la raíz escriben en
+ * `C:\Windows\x`.
+ */
+function relativaDeGitBash(rel, cwd, conContrabarras = false) {
+  const unidad = /^([A-Za-z]):[\\/]?([\s\S]*)$/.exec(cwd);
+  // una carpeta de Git Bash sin unidad (`cd /` da `\`, `cd /tmp` da `\tmp`): bash resuelve desde ella con barras
+  const deBash = !unidad && /^[\\/](?![\\/])/.test(cwd);
+  if (!unidad && !deBash) return path.win32.resolve(cwd, rel);
+  const relPosix = rel.split('\\').join('/');
+  // `/c/a/b` → `C:\a\b`, sin depender de la lib de rutas (un skill instalado a medias corre sin ella)
+  const nativa = (r) => {
+    const m = /^\/([A-Za-z])(?:\/([\s\S]*))?$/.exec(r);
+    if (m) return path.win32.normalize(`${m[1].toUpperCase()}:\\${m[2] || ''}`);
+    // `/cygdrive/c/…`, `/proc/self/root/c/…`: las conoce la lib de rutas, si está
+    const n = nativePath(r, 'win32');
+    // fuera de toda unidad (`/`, `/tmp/x`: subió más allá de ella o arrancó sin una) queda la forma de Git Bash, que una
+    // relativa posterior sigue resolviendo como bash
+    if (/^[A-Za-z]:/.test(n)) return n;
+    // con contrabarras Git Bash la toma por una ruta de Windows, que no sale de la unidad al subir. No se decide antes por
+    // la contrabarra: puede ser un escape del shell (`a\.txt` en una variable), y la lectura de bash ya cae en la unidad
+    return conContrabarras && unidad ? path.win32.resolve(cwd, rel) : path.win32.normalize(r);
+  };
+  const carpeta = deBash ? cwd.split('\\').join('/')
+    : `/${unidad[1].toLowerCase()}${unidad[2] ? `/${unidad[2].split('\\').join('/')}` : ''}`;
+  return nativa(path.posix.resolve(carpeta, relPosix));
 }
 
 

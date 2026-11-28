@@ -949,3 +949,84 @@ test('T46 CarpetaQueCumple_ConMuchasCarpetas @A50 — pasado el tope de carpetas
   frena(c, 'for d in $(find . -type d -name specs); do rm -rf "$d"; done');
   pasa(c, 'find aaa -name specs -exec rm -rf {} +');
 });
+
+// T47 Cuenta_EntreComillas_NoEsUnDestino @S247d
+// 🔴 Falla con: el `>` de una cuenta `$(( a > b ))`, con o sin comillas, leído como una redirección (frenaba con la palabra
+// de después como destino), o con lo que corre adentro de la cuenta, con una sustitución que sólo parece una cuenta
+// (`$((cp …) )`) o con una cuenta que zsh corre como comandos (`$((cp … && : `: \(`))`), dejado de leer.
+test('T47 Cuenta_EntreComillas_NoEsUnDestino @S247d — el > de una cuenta compara; lo que corre adentro se sigue leyendo', () => {
+  const c = corral();
+  for (const cmd of [`echo "$(( x > ${H} ? 1 : 0 ))"`, `echo $(( x > ${H} ))`, `n="$(( 3 > ${H} ))"`,
+    `echo "$(( $(( x > ${H} )) + 1 ))"`, `echo "$(( x >= ${H} ))" | cat`]) pasa(c, cmd);
+  for (const cmd of [
+    `echo "$(( $(cp README.md ${H}) ))"`, `echo "$(( \`cp README.md ${H}\` ))"`, `echo $(( $(cp README.md ${H}) + 1 ))`,
+    `echo "$((cp README.md ${H}) )"`, `echo "$((cp README.md ${H}); (true))"`, `echo "$(( 1 ))" > ${H}`,
+    `echo "$(( "x" > ${H} ))"`, `echo "$(( a[$(cp README.md ${H})] ))"`, `echo "$(( x )) $(cp README.md ${H})"`,
+    `echo "$(( x ; cp README.md ${H} ))"`, `echo "$(( <(cp README.md ${H}) ))"`,
+    // zsh corre como comandos una cuenta que no puede leer y que tiene una sustitución adentro (revisión de Fable)
+    `echo $((cp README.md ${H} && : \`: \\(\`))`, `echo "$((cat README.md > ${H} && : \`: \\(\`))"`,
+    `x=$((cp README.md ${H} && : \`: \\(\`))`, `echo "$(( \${x:-$(cp README.md ${H})} ))"`,
+    // el valor de una variable adentro de una cuenta se lee como otra cuenta, y puede correr un comando (vuelta 3 de Fable)
+    `x='a[$(cp README.md ${H})]'; echo $(( $x ))`, `x='a[$(cp README.md ${H})]'; echo "$(( \${x} + 1 ))"`,
+  ]) frena(c, cmd);
+  // la barra de una cuenta en la ruta destino divide, no es una carpeta (vuelta 3 de Fable): una historia por su contenido
+  fs.writeFileSync(path.join(c.dir, 'specs', 'hist.md'), '---\nstory: "1.3"\nepic: "1"\ntitle: "z"\nstatus: in-progress\n---\n\n# z\n');
+  fs.mkdirSync(path.join(c.dir, '1'));
+  for (const cmd of ['cp README.md $(( 2 / 2 ))/../specs/hist.md', 'echo x | tee $(( 2 / 2 ))/../specs/hist.md',
+    'echo x > $((2/2))/../specs/hist.md']) {
+    const r = correr(c, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+  }
+  // una cuenta adentro de la ruta destino es parte de esa palabra (revisión de Fable de la A216): frena como una
+  // historia nueva escrita por consola
+  for (const cmd of [
+    'cp README.md specs/story-1.$((0+1)).md', 'mv README.md specs/story-1.$((0+1)).md', 'echo x > specs/story-1.$((0+1)).md',
+    'echo x >> specs/story-$((0+1)).1.md', 'echo x | tee specs/story-1.$((0+1)).md', 'cp README.md specs/story-1.$(( 0 + 1 )).md',
+    'echo x > "specs/story-1.$(( 0 + 1 )).md"', 'echo x > specs/story-1.$(( 2 > 1 )).md', 'echo "$(( a > b ))" > specs/story-1.$((0+1)).md',
+  ]) {
+    const r = correr(c, cmd);
+    assert.strictEqual(r.salida, 2, `frena: ${JSON.stringify(cmd)}\n${r.stderr}`);
+    assert.match(r.stderr, /story-[\d.]*\$\(\(/, `nombra la ruta con la cuenta: ${JSON.stringify(cmd)}`);
+  }
+});
+
+// T48 CuentaSinPesos_NoEsUnDestino @A213
+// 🔴 Falla con: el `>` o el `<` de una cuenta sin `$`, `(( a > b ))` o `for ((i=0;i<3;i++))`, leído como una redirección
+// (frenaba con la palabra de después como destino), o con una escritura de verdad al lado de la cuenta, o adentro de un
+// subshell que sólo se parece a una cuenta, dejada de leer.
+test('T48 CuentaSinPesos_NoEsUnDestino @A213 — el > de (( … )) compara; lo que escribe al lado se sigue leyendo', () => {
+  const c = corral();
+  fs.mkdirSync(path.join(c.dir, '1'));
+  for (const cmd of [`(( x > ${H} ))`, `(( i++ ))`, `if (( x >= ${H} )); then echo si; fi`,
+    `for ((i=0;i<${H};i++)); do echo $i; done`, `(( x > ${H} )) && echo si`, `while (( x < ${H} )); do break; done`,
+    `echo a; (( x > ${H} ))`, `! (( x > ${H} ))`, `for ((i=5;i>${H};i--)); do echo $i; done`, `{ (( x > ${H} )); }`,
+    `until (( x > ${H} )); do break; done`, `time (( x > ${H} ))`, `(((x > ${H})))`,
+    `if true; then (( x > ${H} )); fi`, `! (( x > ${H} )) || echo no`, `if ! (( x > ${H} )); then :; fi`]) pasa(c, cmd);
+  for (const cmd of [`(( 1 )) > ${H}`, `echo $(( 1 > 0 )) > ${H}`, `( cat README.md > ${H} )`,
+    `((cat README.md > ${H}) )`, `( (cat README.md > ${H}) )`, `((cat README.md) > ${H})`, `(( x > 0 )); cp README.md ${H}`,
+    `((cat README.md > ${H}); (true))`, `for ((i=0;i<1;i++)); do cp README.md ${H}; done`,
+    `(( $(cp README.md ${H}) ))`, `(( \`cp README.md ${H}\` ))`, `(( a[$(cp README.md ${H})] ))`,
+    `(( x > 0 )) > ${H}`, `cat <((x > ${H}))`, `{ (( x )) > ${H}; }`, `echo $( (( 1 )) > ${H} )`, `echo hi >|((x > ${H}))`,
+    `\\((x > ${H}))`, `cat <( ((1)) ) > ${H}`, `(( "x" > ${H} ))`, `(( x > ${H} ; cp README.md ${H} ))`,
+    `if ((1)); then cat README.md > ${H}; fi`, `for ((cat README.md > ${H}; 0; )) ; do :; done; cp README.md ${H}`,
+    // en `sh` de Linux, `dash` o `ash`, `((…))` son dos subshells y lo de adentro corre: lo anidado no se lee como cuenta
+    // (revisión de Fable)
+    `dash -c '((cp README.md ${H}))'`, `dash -c '(( x > ${H} ))'`, `ash -c '((cp README.md ${H}))'`, `sh -c '(( x > ${H} ))'`,
+    `xargs dash -c '(( x > ${H} ))'`, `dash <<'EOF'\n(( x > ${H} ))\nEOF`,
+    // el `!`, el `{`, el `(` o la palabra de bloque de delante tienen que abrir un comando: detrás de `echo` son argumentos
+    `( ( noglob echo ! ((x > ${H}))`, `( ( noglob echo if ((x > ${H}))`, `( ( noglob echo (((x > ${H})))`,
+    `( ( noglob : for ((a; cp README.md ${H}; b))`, `echo { ((x > ${H}))`, `echo do ((x > ${H}))`,
+    // el `((` pegado a `$(` es la cuenta `$(((…)))` de la ruta destino, no un comando (revisión de Fable de la mezcla)
+    `echo x > $(((2/2)))/../${H}`, `echo x >> $(((2/2)))/../${H}`, `echo x &> $(((2/2)))/../${H}`,
+  ]) frena(c, cmd);
+  // en PowerShell (y en lo que corre Monitor) `((x > f))` escribe: la cuenta se lee así sólo en la herramienta Bash
+  for (const herramienta of ['PowerShell', 'Monitor']) {
+    const base = {};
+    for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('TYCON_')) base[k] = v;
+    const r = spawnSync(process.execPath, [GATE], {
+      input: JSON.stringify({ tool_name: herramienta, session_id: 's-anidados', cwd: c.dir, tool_input: { command: `(( x > ${H} ))` } }),
+      env: { ...base, HOME: c.home, USERPROFILE: c.home, TYCON_NO_RUN_CHANGE: '1' }, encoding: 'utf8', timeout: 15000,
+    });
+    assert.strictEqual(r.status, 2, `frena en ${herramienta}\n${r.stderr}`);
+  }
+});

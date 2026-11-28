@@ -157,7 +157,7 @@ function armarTabla({ maquinas, ilegibles = {}, problema = null, sinJornadas = [
   const totales = {};
   for (const d of dias) {
     celdas[d] = {};
-    const t = { arnes_segundos: 0, sesion_segundos: 0, lectura: 0, escritura: 0, cache: 0, no_medidas: 0, con_horas: 0, con_tokens: 0 };
+    const t = { arnes_segundos: 0, sesion_segundos: 0, lectura: 0, escritura: 0, cache: 0, no_medidas: 0, sin_tokens: 0, sin_horas: 0, con_horas: 0, con_tokens: 0 };
     for (const m of nombres) {
       const v = maquinas[m] ? maquinas[m][d] : null;
       let c;
@@ -170,7 +170,10 @@ function armarTabla({ maquinas, ilegibles = {}, problema = null, sinJornadas = [
         if (c.tokens) { t.lectura += c.tokens.lectura; t.escritura += c.tokens.escritura; t.cache += c.tokens.cache; t.con_tokens += 1; }
       }
       // una celda medida a medias tampoco entra entera en el total: se cuenta como sin medir
-      if (c.estado !== 'medido' || !c.horas || !c.tokens) t.no_medidas += 1;
+      // una máquina con horas y sin tokens (o al revés) no es «sin medir»: se cuenta aparte, por lo que le falta
+      if (c.estado !== 'medido' || (!c.horas && !c.tokens)) t.no_medidas += 1;
+      else if (!c.tokens) t.sin_tokens += 1;
+      else if (!c.horas) t.sin_horas += 1;
       celdas[d][m] = c;
     }
     totales[d] = t;
@@ -190,9 +193,10 @@ function lineas(idioma, { horas, tokens, horasMotivo, tokensMotivo }) {
   const t = (k, v) => TX.t(idioma, k, v);
   const out = [];
   if (horas) out.push(`<div>${esc(t('horas.arnes'))}: ${horasDe(horas.arnes_segundos)}</div>`, `<div>${esc(t('horas.sesion'))}: ${horasDe(horas.sesion_segundos)}</div>`);
-  else out.push(`<div><span title="${esc(horasMotivo || '')}">${esc(t('horas.horasNoMedidas'))}</span></div>`);
+  // el motivo va a la vista, no sólo al pasar el mouse
+  else out.push(`<div>${esc(horasMotivo ? t('horas.noMedidasPorque', { que: t('horas.horasNoMedidas'), motivo: horasMotivo }) : t('horas.horasNoMedidas'))}</div>`);
   if (tokens) out.push(`<div>${esc(t('horas.tokens'))}: ${abreviar(tokens.lectura)} · ${abreviar(tokens.escritura)} · ${abreviar(tokens.cache)}</div>`);
-  else out.push(`<div><span title="${esc(tokensMotivo || '')}">${esc(t('horas.tokensNoMedidos'))}</span></div>`);
+  else out.push(`<div>${esc(tokensMotivo ? t('horas.noMedidasPorque', { que: t('horas.tokensNoMedidos'), motivo: tokensMotivo }) : t('horas.tokensNoMedidos'))}</div>`);
   return out.join('');
 }
 
@@ -210,7 +214,9 @@ function htmlTabla(tabla, idioma) {
       return `<td>${lineas(idioma, c)}</td>`;
     }).join('');
     const tot = tabla.totales[d];
-    const sinMedir = tot.no_medidas ? `<div>${esc(tot.no_medidas === 1 ? t('horas.sinMedir1') : t('horas.sinMedirN', { n: tot.no_medidas }))}</div>` : '';
+    const sinMedir = (tot.no_medidas ? `<div>${esc(tot.no_medidas === 1 ? t('horas.sinMedir1') : t('horas.sinMedirN', { n: tot.no_medidas }))}</div>` : '')
+      + (tot.sin_tokens ? `<div>${esc(tot.sin_tokens === 1 ? t('horas.sinTokens1') : t('horas.sinTokensN', { n: tot.sin_tokens }))}</div>` : '')
+      + (tot.sin_horas ? `<div>${esc(tot.sin_horas === 1 ? t('horas.sinHoras1') : t('horas.sinHorasN', { n: tot.sin_horas }))}</div>` : '');
     // sin ninguna máquina medida, el total no es cero: es «no medido»; y lo mismo por separado para las horas y los
     // tokens: sin ninguna máquina con horas medidas, el total de horas dice «no medidas», no 0.0 h
     const ninguna = !tot.con_horas && !tot.con_tokens;
@@ -218,7 +224,7 @@ function htmlTabla(tabla, idioma) {
       : lineas(idioma, { horas: tot.con_horas ? { arnes_segundos: tot.arnes_segundos, sesion_segundos: tot.sesion_segundos } : null, tokens: tot.con_tokens ? tot : null }) + sinMedir;
     return `<tr><th scope="row">${esc(d)}</th>${celdas}<td class="total">${total}</td></tr>`;
   }).join('');
-  return `<table class="horas"><thead>${cab}</thead><tbody>${filas}</tbody></table>`;
+  return `<div class="desliza" tabindex="0"><table class="horas"><thead>${cab}</thead><tbody>${filas}</tbody></table></div>`;
 }
 
 const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -285,8 +291,10 @@ function textoCosto(c, t) {
  * tabla (nombres viejos, máquinas de CI): `fuera` dice cuántas. 🔴 «NO MEDIDO» NUNCA ES CERO: una persona sin días
  * medidos tiene `segundos`, `promedioDia` y `tokens` en null; un día cuenta como medido si alguna de sus máquinas trae
  * horas medidas ese día, y el promedio es por día medido.
- *   → { semana: { dias, promedioDia, tokens, sinMedir }, anterior: { dias, promedioDia, tokens }, personas: [{ persona,
- *       maquinas, segundos, diasMedidos, promedioDia, tokens }], fuera }
+ * `diasConDato` dice cuántos de los 7 días trajeron algo medido de alguna máquina: comparar una semana con otra que
+ * tiene menos días medidos engaña, y la pantalla lo dice en vez de poner la flecha.
+ *   → { semana: { dias, promedioDia, tokens, sinMedir, diasConDato }, anterior: { dias, promedioDia, tokens,
+ *       diasConDato }, personas: [{ persona, maquinas, segundos, diasMedidos, promedioDia, tokens }], fuera }
  */
 function resumen(tabla, people, precios = null) {
   const p = isObj(people) ? people : {};
@@ -319,7 +327,11 @@ function resumen(tabla, people, precios = null) {
   };
   const semana = tabla.dias.slice(0, 7);
   const anterior = tabla.dias.slice(7, 14);
-  const personas = [...grupos.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([persona, maqs]) => ({ persona, maquinas: maqs.slice().sort(), ...medir(maqs, semana) }));
+  const conDato = (dias) => dias.filter((d) => visibles.some((m) => { const c = tabla.celdas[d][m]; return c && c.estado === 'medido' && (c.horas || c.tokens); })).length;
+  // una máquina sin persona asignada va con su nombre, y lo dice: no es una persona (una persona con dos máquinas sin
+  // asignar saldría como dos)
+  const sinDueno = (k) => !visibles.some((m) => personaDe(m) === k && m !== k);
+  const personas = [...grupos.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([persona, maqs]) => ({ persona, sinPersona: sinDueno(persona) && !(isObj(duenos[persona]) && texto(duenos[persona].person)), maquinas: maqs.slice().sort(), ...medir(maqs, semana) }));
   const equipo = (dias) => {
     const filas = [...grupos.values()].map((maqs) => medir(maqs, dias));
     const dm = filas.reduce((a, f) => a + f.diasMedidos, 0);
@@ -327,10 +339,16 @@ function resumen(tabla, people, precios = null) {
     const tok = filas.filter((f) => f.tokens !== null);
     const costo = costoVacio();
     for (const f of filas) sumarCosto(costo, f.costo);
-    return { dias, promedioDia: dm ? seg / dm : null, tokens: tok.length ? tok.reduce((a, f) => a + f.tokens, 0) : null, costo: cerrarCosto(costo) };
+    return { dias, promedioDia: dm ? seg / dm : null, tokens: tok.length ? tok.reduce((a, f) => a + f.tokens, 0) : null, costo: cerrarCosto(costo), diasConDato: conDato(dias) };
   };
   let sinMedir = 0;
-  for (const m of visibles) for (const d of semana) { const c = tabla.celdas[d][m]; if (!(c && c.estado === 'medido' && c.horas)) sinMedir += 1; }
+  // los días con horas y sin tokens: los tokens de la semana los dejan afuera, y la ficha lo dice
+  let tokensSinMedir = 0;
+  for (const m of visibles) for (const d of semana) {
+    const c = tabla.celdas[d][m];
+    if (!(c && c.estado === 'medido' && c.horas)) sinMedir += 1;
+    else if (!c.tokens) tokensSinMedir += 1;
+  }
   // hasta 6 semanas enteras, de la más nueva a la más vieja; una persona sin días medidos en una semana va en null
   const semanas = [];
   for (let i = 0; i < SEMANAS && (i + 1) * 7 <= tabla.dias.length; i++) {
@@ -343,32 +361,40 @@ function resumen(tabla, people, precios = null) {
       if (f.segundos !== null) medida = true;
       if (f.tokens !== null) { tokens += f.tokens; conTokens = true; }
     }
-    semanas.push({ desde: ds[6], hasta: ds[0], porPersona, tokens: conTokens ? tokens : null, medida });
+    semanas.push({ desde: ds[6], hasta: ds[0], porPersona, tokens: conTokens ? tokens : null, medida, diasConDato: conDato(ds) });
   }
   const sinHoras = (tabla.sinJornadas || []).filter((m) => !Object.prototype.hasOwnProperty.call(ocultas, m));
-  return { semana: { ...equipo(semana), sinMedir }, anterior: equipo(anterior), personas, fuera: tabla.maquinas.length - visibles.length, semanas, sinHoras };
+  return { semana: { ...equipo(semana), sinMedir, tokensSinMedir }, anterior: equipo(anterior), personas, fuera: tabla.maquinas.length - visibles.length, semanas, sinHoras };
 }
 
 /** El resumen en HTML: cuatro fichas (la del costo, estimado) y la tabla por persona, con su costo estimado. */
+/** El nombre de una fila de «Por persona»: una máquina sin persona asignada lo dice. */
+const nombreDeFila = (p, t) => (p.sinPersona ? t('horas.maquinaSinPersona', { maquina: p.persona }) : p.persona);
+
 function htmlResumen(r, idioma) {
   const t = (k, v) => TX.t(idioma, k, v);
   const nm = esc(t('horas.noMedido'));
   const h = (s) => (s === null ? nm : horasDe(s));
   const tk = (n) => (n === null ? nm : abreviar(n));
+  // la anterior con menos días medidos que ésta no se compara: lo dice, sin flecha (una semana de 3 días contra una de
+  // 7 hace creer que el consumo bajó)
+  const parejas = r.semana.diasConDato === r.anterior.diasConDato;
+  const incompleta = r.anterior.diasConDato < 7 && r.anterior.diasConDato > 0 ? ` (${t('horas.diasDe7', { n: r.anterior.diasConDato })})` : '';
   const ant = (v, ahora, antes) => {
-    // la flecha sólo cuando las dos semanas se midieron: contra una sin medir no hay comparación
-    const flecha = ahora === null || antes === null || antes === undefined ? '' : ahora > antes ? ' ↑' : ahora < antes ? ' ↓' : ' =';
-    return `<div class="ficha-ant">${esc(t('horas.anterior', { valor: v }))}${flecha}</div>`;
+    // la flecha sólo cuando las dos semanas se midieron, y los mismos días: si no, no hay comparación
+    const flecha = !parejas || ahora === null || antes === null || antes === undefined ? '' : ahora > antes ? ' ↑' : ahora < antes ? ' ↓' : ' =';
+    return `<div class="ficha-ant">${esc(t('horas.anterior', { valor: v }) + (antes === null || antes === undefined ? '' : incompleta))}${flecha}</div>`;
   };
   const ficha = (titulo, valor, extra = '') => `<div class="ficha"><div class="ficha-titulo">${esc(titulo)}</div><div class="ficha-valor">${valor}</div>${extra}</div>`;
   const dias = r.semana.dias;
   const titulo = dias.length ? `<h2>${esc(t('horas.semanaTitulo', { desde: dias[dias.length - 1], hasta: dias[0] }))}</h2>` : '';
   const fichas = `<div class="fichas">${ficha(t('horas.fichaHoras'), h(r.semana.promedioDia), ant(r.anterior.promedioDia === null ? t('horas.noMedido') : horasDe(r.anterior.promedioDia), r.semana.promedioDia, r.anterior.promedioDia))}`
-    + `${ficha(t('horas.fichaTokens'), tk(r.semana.tokens), ant(r.anterior.tokens === null ? t('horas.noMedido') : abreviar(r.anterior.tokens), r.semana.tokens, r.anterior.tokens))}`
+    + `${ficha(t('horas.fichaTokens'), tk(r.semana.tokens), ant(r.anterior.tokens === null ? t('horas.noMedido') : abreviar(r.anterior.tokens), r.semana.tokens, r.anterior.tokens)
+      + (r.semana.tokensSinMedir ? `<div class="ficha-ant">${esc(r.semana.tokensSinMedir === 1 ? t('horas.tokensFaltan1') : t('horas.tokensFaltanN', { n: r.semana.tokensSinMedir }))}</div>` : ''))}`
     + `${ficha(t('horas.fichaSinMedir'), String(r.semana.sinMedir))}${ficha(t('horas.fichaCosto'), textoCosto(r.semana.costo, t))}</div>`;
-  const filas = r.personas.map((f) => `<tr><th scope="row">${esc(f.persona)}${f.maquinas.length > 1 || f.maquinas[0] !== f.persona ? `<div class="maquinas">${esc(t('horas.maquinasDe', { lista: f.maquinas.join(', ') }))}</div>` : ''}</th>`
+  const filas = r.personas.map((f) => `<tr><th scope="row">${esc(nombreDeFila(f, t))}${f.maquinas.length > 1 || f.maquinas[0] !== f.persona ? `<div class="maquinas">${esc(t('horas.maquinasDe', { lista: f.maquinas.join(', ') }))}</div>` : ''}</th>`
     + `<td>${h(f.promedioDia)}</td><td>${h(f.segundos)}</td><td>${esc(t('horas.nDe7', { n: f.diasMedidos }))}</td><td>${tk(f.tokens)}</td><td>${textoCosto(f.costo, t)}</td></tr>`).join('');
-  const tabla = r.personas.length ? `<h3>${esc(t('horas.porPersona'))}</h3><table class="horas-personas"><thead><tr><th>${esc(t('horas.persona'))}</th><th>${esc(t('horas.promedioDia'))}</th><th>${esc(t('horas.totalSemana'))}</th><th>${esc(t('horas.diasMedidos'))}</th><th>${esc(t('horas.tokensSinCache'))}</th><th>${esc(t('horas.costoColumna'))}</th></tr></thead><tbody>${filas}</tbody></table>` : '';
+  const tabla = r.personas.length ? `<h3>${esc(t('horas.porPersona'))}</h3><div class="desliza" tabindex="0"><table class="horas-personas"><thead><tr><th>${esc(t('horas.persona'))}</th><th>${esc(t('horas.promedioDia'))}</th><th>${esc(t('horas.totalSemana'))}</th><th>${esc(t('horas.diasMedidos'))}</th><th>${esc(t('horas.tokensSinCache'))}</th><th>${esc(t('horas.costoColumna'))}</th></tr></thead><tbody>${filas}</tbody></table></div>` : '';
   const fuera = r.fuera ? `<p class="nota">${esc(r.fuera === 1 ? t('horas.fuera1') : t('horas.fueraN', { n: r.fuera }))}</p>` : '';
   const avisos = (r.sinHoras || []).map((m) => `<p class="aviso">${esc(t('horas.sinHoras', { maquina: m }))}</p>`).join('');
   return `${titulo}${avisos}${fichas}${tabla}${fuera}`;
@@ -384,6 +410,7 @@ function htmlSemanas(r, idioma) {
   const semanas = (r.semanas || []).slice().reverse();
   if (!semanas.length) return '';
   const nombres = r.personas.map((p) => p.persona);
+  const etiquetas = r.personas.map((p) => nombreDeFila(p, t));
   const color = (i) => (i < SERIES ? `var(--serie-${i + 1})` : 'var(--nm)');
   const W = 640; const H = 200; const IZQ = 48; const ABAJO = 24; const ARRIBA = 10;
   const ancho = (W - IZQ - 10) / semanas.length;
@@ -396,25 +423,30 @@ function htmlSemanas(r, idioma) {
     const grilla = [0, max / 2, max].map((v) => `<line class="grilla" x1="${IZQ}" x2="${W - 10}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="eje" x="${IZQ - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(formato(v))}</text>`).join('');
     const barras = semanas.map((s, i) => {
       const x = ejeX(i);
+      // una semana con menos de 7 días medidos lleva su marca arriba de la barra y lo dice al pasar el mouse
+      const falta = s.medida && Number.isInteger(s.diasConDato) && s.diasConDato < 7;
+      const deDias = falta ? ` (${t('horas.diasDe7', { n: s.diasConDato })})` : '';
+      const marca = (tope) => (falta ? `<text class="incompleta" x="${(x + barra / 2).toFixed(1)}" y="${Math.max(ARRIBA + 9, tope - 4).toFixed(1)}" text-anchor="middle">${s.diasConDato}/7</text>` : '');
       const etiqueta = `<text class="eje" x="${(x + barra / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(fecha(s.desde))}</text>`;
       if (!s.medida) return `${etiqueta}<text class="sin-medir" x="${(x + barra / 2).toFixed(1)}" y="${(H - ABAJO - 6).toFixed(1)}" text-anchor="middle">${esc(t('horas.sinMedirCorto'))}</text>`;
       if (!pila) {
         const v = valores[i];
         if (v === null) return `${etiqueta}<text class="sin-medir" x="${(x + barra / 2).toFixed(1)}" y="${(H - ABAJO - 6).toFixed(1)}" text-anchor="middle">${esc(t('horas.sinMedirCorto'))}</text>`;
-        return `${etiqueta}<rect class="barra-tokens" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${barra.toFixed(1)}" height="${(y(0) - y(v)).toFixed(1)}" rx="2"><title>${esc(`${s.desde} a ${s.hasta}: ${formato(v)}`)}</title></rect>`;
+        return `${etiqueta}<rect class="barra-tokens" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${barra.toFixed(1)}" height="${(y(0) - y(v)).toFixed(1)}" rx="2"><title>${esc(`${s.desde} a ${s.hasta}: ${formato(v)}${deDias}`)}</title></rect>${marca(y(v))}`;
       }
       let base = 0;
       const partes = valores[i].filter((p) => p.valor).map((p) => {
         const y0 = y(base); base += p.valor; const y1 = y(base);
         // 2 px de superficie entre partes: cada persona se distingue también sin el color
-        return `<rect class="barra-persona" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${barra.toFixed(1)}" height="${Math.max(0, y0 - y1 - 2).toFixed(1)}" rx="2" style="fill:${color(p.i)}"><title>${esc(`${p.persona} · ${s.desde} a ${s.hasta}: ${formato(p.valor)}`)}</title></rect>`;
+        return `<rect class="barra-persona" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${barra.toFixed(1)}" height="${Math.max(0, y0 - y1 - 2).toFixed(1)}" rx="2" style="fill:${color(p.i)}"><title>${esc(`${p.persona} · ${s.desde} a ${s.hasta}: ${formato(p.valor)}${deDias}`)}</title></rect>`;
       }).join('');
-      return `${etiqueta}${partes}`;
+      return `${etiqueta}${partes}${marca(y(base))}`;
     }).join('');
-    return `<figure class="grafico"><figcaption>${esc(titulo)}</figcaption><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo)}">${grilla}${barras}</svg></figure>`;
+    // en una pantalla angosta el gráfico se desliza en vez de achicarse hasta que los rótulos no se leen
+    return `<div class="desliza" tabindex="0"><figure class="grafico"><figcaption>${esc(titulo)}</figcaption><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo)}">${grilla}${barras}</svg></figure></div>`;
   };
   const horas = semanas.map((s) => nombres.map((persona, i) => ({ persona, i, valor: s.porPersona[persona] })).filter((p) => p.valor !== null));
-  const leyenda = `<ul class="leyenda">${nombres.map((n, i) => `<li><span class="muestra" style="background:${color(i)}"></span>${esc(i < SERIES ? n : `${n} (${t('horas.otras')})`)}</li>`).join('')}</ul>`;
+  const leyenda = `<ul class="leyenda">${nombres.map((n, i) => `<li><span class="muestra" style="background:${color(i)}"></span>${esc(i < SERIES ? etiquetas[i] : `${etiquetas[i]} (${t('horas.otras')})`)}</li>`).join('')}</ul>`;
   return `<h3>${esc(t('horas.evolucion'))}</h3>${grafico(t('horas.graficoHoras'), horas, horasDe, true)}${leyenda}${grafico(t('horas.graficoTokens'), semanas.map((s) => s.tokens), abreviar, false)}`;
 }
 
@@ -429,9 +461,10 @@ function htmlDiaPorPersona(tabla, r, idioma) {
       for (const m of p.maquinas) { const c = tabla.celdas[d][m]; if (c && c.estado === 'medido' && c.horas) { s += c.horas.arnes_segundos; medido = true; } }
       return medido ? `<td>${horasDe(s)}</td>` : `<td class="no-medido">${esc(t('horas.noMedido'))}</td>`;
     }).join('');
-    return `<tr><th scope="row">${esc(p.persona)}</th>${celdas}</tr>`;
+    return `<tr><th scope="row">${esc(nombreDeFila(p, t))}</th>${celdas}</tr>`;
   }).join('');
-  return `<div class="desliza"><table class="por-persona"><thead>${cab}</thead><tbody>${filas}</tbody></table></div>`;
+  // 30 columnas no entran en la pantalla: se dice que hay más y hacia dónde
+  return `<p class="desliza-aviso">${esc(t('horas.deslizaAviso', { n: dias.length }))}</p><div class="desliza" tabindex="0"><table class="por-persona"><thead>${cab}</thead><tbody>${filas}</tbody></table></div>`;
 }
 
 function crearRutas({ fuentes, log = () => {}, ahora = Date.now } = {}) {

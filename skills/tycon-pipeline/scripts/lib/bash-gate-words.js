@@ -370,6 +370,65 @@ function cierreDeParentesis(s, i) {
   return -1;
 }
 
+// las palabras de bloque detrás de las que empieza un comando: `if (( a > b ))`, `for ((i=0;i<3;i++))`
+const PALABRA_DE_BLOQUE = /(?:^|[\s;&|(){}!])(if|elif|while|until|then|do|else|time|for)$/;
+// cuántos `!`, `{`, `(` o palabras de bloque seguidos se miran hacia atrás
+const HONDO_DE_POSICION = 32;
+
+/**
+ * Si `t[p]` está donde el shell espera un comando (`{}`, o `{ for: true }` detrás de `for`; null si no): al principio,
+ * detrás de `;`, `&`, `|` o un renglón, o detrás de un `!`, `{`, `(` o palabra de bloque que también lo están; nunca
+ * detrás de `$(` (`$(((2/2)))` es una cuenta de la ruta, no un comando: se lee con lo de su palabra)
+ * (en `echo ! ((…))` el `!` es un argumento). Nunca escapado ni detrás de una redirección (`>|`, `<&`, `<(`).
+ */
+function dondeEmpiezaUnComando(t, p, hondo = 0) {
+  if (hondo > HONDO_DE_POSICION) return null;
+  let k = p;
+  while (k > 0 && (t[k - 1] === ' ' || t[k - 1] === '\t')) k--;
+  if (k === 0) return {};
+  const antes = t[k - 1];
+  const dos = t[k - 2] || '';
+  if (dos === '\\') return null;
+  if (antes === '\n' || antes === ';') return {};
+  if (antes === '&' || antes === '|') return /[<>&|]/.test(dos) && !(antes === dos) ? null : {};
+  if (antes === '(') {
+    if (/[$<>=]/.test(dos)) return null;
+    return dondeEmpiezaUnComando(t, k - 1, hondo + 1);
+  }
+  if (antes === '!' || antes === '{') return /[\s;&|()]/.test(dos) || k === 1 ? dondeEmpiezaUnComando(t, k - 1, hondo + 1) : null;
+  const m = PALABRA_DE_BLOQUE.exec(t.slice(Math.max(0, k - 7), k));
+  if (!m) return null;
+  const r = dondeEmpiezaUnComando(t, k - m[1].length, hondo + 1);
+  return r && { for: m[1] === 'for' };
+}
+
+/**
+ * El comando con cada cuenta sin `$` que no corre nada (`(( a > b ))`, `for ((i=0;i<3;i++))`) en blanco: su `>` compara.
+ * Sólo para el comando de la herramienta Bash (`cuentas`): en `dash`, `ash`, el `sh` de Linux o PowerShell, `((…))` son
+ * dos paréntesis y lo de adentro corre, así que nunca para lo anidado ni un guion. Sólo donde empieza un comando, fuera
+ * de comillas y heredocs, y si `adentroDeUnaCuenta` (de bash-gate-targets.js, que la pasa) la lee como cuenta (`((cp a b) )` y `(( $(cp a b) ))` no). Lo de al
+ * lado (`(( 1 )) > f`) se sigue leyendo; las posiciones no cambian.
+ */
+function sinCuentasSueltas(texto, adentroDeUnaCuenta) {
+  const t = String(texto);
+  if (!t.includes('((')) return t;
+  const es = posicionesDeComando(t);
+  let out = '';
+  let hecho = 0;
+  for (let p = t.indexOf('(('); p >= 0; p = t.indexOf('((', p + 1)) {
+    if (p < hecho || !es[p]) continue;
+    const donde = dondeEmpiezaUnComando(t, p);
+    if (!donde) continue;
+    const fin = cierreDeParentesis(t, p);
+    // (detrás de `for`, las tres cuentas van separadas por `;`: bash y zsh no corren nada de lo de adentro)
+    if (fin < 0 || adentroDeUnaCuenta(t, p, fin, { sinPesos: true, conPuntoYComa: Boolean(donde.for) }) === null) continue;
+    out += t.slice(hecho, p) + ' '.repeat(fin - p + 1);
+    hecho = fin + 1;
+    p = fin;
+  }
+  return out + t.slice(hecho);
+}
+
 /**
  * Agrega a `out` los archivos que edita en su lugar un `sed -i` / `--in-place` o un `perl -i` / `-pi` / `-ni` que empieza
  * `head`: todo token con extensión de código, o que quien llama quiere mirar igual (`keep`). `raw`, el comando entero.
@@ -608,6 +667,71 @@ function versionadoSinMemo(real, memo) {
   const propio = git(['rev-parse', '--verify', '-q', `HEAD:${relGit}`]);
   const enMain = git(['rev-parse', '--verify', '-q', `${main}:${relGit}`]);
   return propio.status === 0 && enMain.status === 0 && propio.stdout.trim() === enMain.stdout.trim();
+}
+
+/**
+ * ¿`real` (ya resuelta, fuera del árbol del freno) tiene los mismos bytes que main del árbol del freno en la misma ruta?
+ * Es otra copia del arnés (una carpeta de trabajo aparte) con lo revisado: se trata como al guion del árbol propio. La
+ * ruta es la que tiene dentro de su copia, la carpeta más cercana con `.git`, buscada sin correr git en ella (lo que esa
+ * copia configure no corre). Sin main o sin esa ruta en main, no cuenta; sin git en el árbol del freno (una
+ * instalación), se compara con el archivo de esa ruta en el árbol. Sólo se pregunta por los que pasan del tope de lectura.
+ */
+function igualAMainDelArbolPropio(real, memo = { porRuta: new Map() }) {
+  const clave = `main:${real}`;
+  if (memo.porRuta.has(clave)) return memo.porRuta.get(clave);
+  let r = false;
+  try { r = igualAMainSinMemo(real); } catch { r = false; }
+  memo.porRuta.set(clave, r);
+  return r;
+}
+
+function igualAMainSinMemo(real) {
+  const arbol = (() => { try { return fs.realpathSync.native(path.resolve(__dirname, '..', '..', '..', '..')); } catch { return null; } })();
+  if (!arbol || isInsideReal(arbol, real)) return false;
+  let copia = null;
+  for (let d = path.dirname(real); ; d = path.dirname(d)) {
+    if (fs.existsSync(path.join(d, '.git'))) { copia = d; break; }
+    if (path.dirname(d) === d) break;
+  }
+  if (!copia) return false;
+  const rel = path.relative(copia, real).split(path.sep).join('/');
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || /[\n\r]/.test(rel)) return false;
+  const st = fs.statSync(real);
+  if (!st.isFile() || st.size > GUION_TOPE_DURO) return false;
+  // sin git (una instalación, una versión bajada) el árbol entero es el arnés: se compara con el archivo de esa ruta
+  const conGit = (() => {
+    for (let d = arbol; ; d = path.dirname(d)) {
+      if (fs.existsSync(path.join(d, '.git'))) return true;
+      if (path.dirname(d) === d) return false;
+    }
+  })();
+  if (!conGit) {
+    const propio = path.join(arbol, ...rel.split('/'));
+    let real2;
+    try { real2 = fs.realpathSync.native(propio); } catch { return false; }
+    if (!isInsideReal(arbol, real2)) return false;
+    const st2 = fs.statSync(real2);
+    if (!st2.isFile() || st2.size !== st.size) return false;
+    return fs.readFileSync(real2).equals(fs.readFileSync(real));
+  }
+  const { spawnSync } = require('child_process');
+  const env = { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_NO_REPLACE_OBJECTS: '1' };
+  for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']) delete env[k];
+  const git = (args) => spawnSync('git', ['-C', arbol, '-c', 'core.fsmonitor=false', ...args], { windowsHide: true, encoding: 'utf8', timeout: 3000, env });
+  for (const ref of ['refs/remotes/origin/main', 'refs/remotes/origin/master']) {
+    if (git(['rev-parse', '--verify', '-q', `${ref}^{commit}`]).status !== 0) continue;
+    const enMain = git(['rev-parse', '--verify', '-q', `${ref}:${rel}`]);
+    if (enMain.status !== 0) return false;
+    const oid = enMain.stdout.trim();
+    const algoritmo = oid.length === 64 ? 'sha256' : oid.length === 40 ? 'sha1' : null;
+    if (!algoritmo) return false;
+    const bytes = fs.readFileSync(real);
+    const h = require('crypto').createHash(algoritmo);
+    h.update(`blob ${bytes.length}\0`);
+    h.update(bytes);
+    return h.digest('hex') === oid;
+  }
+  return false;
 }
 
 /** ¿`p` (ya resuelta) cae adentro de la carpeta `dir`, comparadas por su ruta real? */
@@ -1359,4 +1483,4 @@ function guionDeSedSinEfectos(guion) {
 }
 
 
-module.exports = { RAIZ_DEL_ARNES, dentroDelArnes, archivoQueNoCompila, esPiezaDelArnes, archivoQueNoEsElInstalado, nativePath, Q, tok, SEPARADOR_DE_SEGMENTOS, splitSegments, sinPalabrasDeBloque, PALABRA_DE_REDIRECCION, DESCRIPTOR, REDIRECCION_DE_SALIDA_CON_PALABRA, REDIRECCION_DE_ENTRADA_CON_PALABRA, sinCerrar, palabrasDelComando, ultimosArgumentos, REDIRECCION_DELANTE, sinRedireccionesDelante, CON_PALABRA_PROPIA, EMPIEZA_REDIRECCION, antesDeUnaRedireccion, finDeSustitucion, nombresDelPrograma, ESCRIBE_LO_QUE_NOMBRA, MODIFICADORES_DE_ZSH, sinSustitucionesCerradas, COPIA, leadingCd, SUBCOMANDO_EN_DESTINO, DESTINO_CON_SUBCOMANDO, posicionesDeComando, subcomandosComoComodin, HONDO_DE_ENV_S, RSYNC_ESCRIBE, archivosDeRsync, cierreDeParentesis, sufijoVacioDe, destinosDelSedEnSitio, INTERPRETES, DESTINO_LITERAL, palabras, argumentosDe, ENTRADAS_LEIDAS, programasPorEntrada, leerProgramasPorEntrada, CORRE_ARCHIVO, GUION_TOPE, GUION_TOPE_DURO, RECORRIDO_NIVELES, RECORRIDO_ARCHIVOS, RECORRIDO_BYTES, ESCANEO_REINTENTO_MS, CORCHETE_TOPE, CLASES_POSIX, MENCIONA_HISTORIA, repoConHistorias, EXTENSION_DE, familiaDe, INTERPRETE_DE, palabraExpandida, SOLO_VARIABLE, ANTES_DEL_PROGRAMA, noSeLeeElPrograma, sinGrupo, rutaRealDelGuion, importsLocales, versionadoEnElArbolPropio, versionadoSinMemo, isInsideReal, primerArgumento, MODO_SOLO_LEE, ARGUMENTO_CON_NOMBRE, ARGUMENTOS_DE_LECTURA, argumentosDeLlamada, archivoQueAbre, OPEN_LLAMADA, sinEscapesDeComillas, literalesDe, vecesAsignado, leerArmado, DELIMITADOR_DE_HEREDOC, MARCA_DE_CUERPO, finDeCuenta, empiezaCuenta, sinBlancosAlBorde, cierresDe, ABRE_O_CIERRA, SIGUE_UN_COMANDO, VALOR_DE_ASIGNACION, PREFIJO, PS_CON_VALOR, REDIRECCION_DE_SALIDA, blancoPorRedireccion, LECTORES_DE_FIND, BORRA_O_MUEVE, expandirLlaves, OPCIONES_DE_TEXTO, CON_MENSAJE, OPCIONES_QUE_EJECUTAN, BUSCADOR_EJECUTA, BUSCADORES, A_UN_SHELL, TOPE_DE_TUBERIAS, vaAUnShell, textosCitados, programaDePerlSoloSustituye, piezasDeTramo, cierreDoble, carpetaDeCd, recorrerCarpetaDeCd, SHELL_CON_C, guionesInternos, TOPE_ANIDADOS, corredoresDeLaOrganizacion, sinComillasDeLosBordes, SED_W_EN_GUION, SED_W_EN_COMANDO, MODULOS_QUE_NO_CORREN, REQUIRE_QUE_NO_CORRE, PROGRAMA_LLEGA_A_PROCESOS, COMANDOS_QUE_NO_CORREN, programasSinProcesos, guionDeSedSinEfectos };
+module.exports = { sinCuentasSueltas, RAIZ_DEL_ARNES, dentroDelArnes, archivoQueNoCompila, esPiezaDelArnes, archivoQueNoEsElInstalado, nativePath, Q, tok, SEPARADOR_DE_SEGMENTOS, splitSegments, sinPalabrasDeBloque, PALABRA_DE_REDIRECCION, DESCRIPTOR, REDIRECCION_DE_SALIDA_CON_PALABRA, REDIRECCION_DE_ENTRADA_CON_PALABRA, sinCerrar, palabrasDelComando, ultimosArgumentos, REDIRECCION_DELANTE, sinRedireccionesDelante, CON_PALABRA_PROPIA, EMPIEZA_REDIRECCION, antesDeUnaRedireccion, finDeSustitucion, nombresDelPrograma, ESCRIBE_LO_QUE_NOMBRA, MODIFICADORES_DE_ZSH, sinSustitucionesCerradas, COPIA, leadingCd, SUBCOMANDO_EN_DESTINO, DESTINO_CON_SUBCOMANDO, posicionesDeComando, subcomandosComoComodin, HONDO_DE_ENV_S, RSYNC_ESCRIBE, archivosDeRsync, cierreDeParentesis, sufijoVacioDe, destinosDelSedEnSitio, INTERPRETES, DESTINO_LITERAL, palabras, argumentosDe, ENTRADAS_LEIDAS, programasPorEntrada, leerProgramasPorEntrada, CORRE_ARCHIVO, GUION_TOPE, GUION_TOPE_DURO, RECORRIDO_NIVELES, RECORRIDO_ARCHIVOS, RECORRIDO_BYTES, ESCANEO_REINTENTO_MS, CORCHETE_TOPE, CLASES_POSIX, MENCIONA_HISTORIA, repoConHistorias, EXTENSION_DE, familiaDe, INTERPRETE_DE, palabraExpandida, SOLO_VARIABLE, ANTES_DEL_PROGRAMA, noSeLeeElPrograma, sinGrupo, rutaRealDelGuion, importsLocales, versionadoEnElArbolPropio, versionadoSinMemo, igualAMainDelArbolPropio, isInsideReal, primerArgumento, MODO_SOLO_LEE, ARGUMENTO_CON_NOMBRE, ARGUMENTOS_DE_LECTURA, argumentosDeLlamada, archivoQueAbre, OPEN_LLAMADA, sinEscapesDeComillas, literalesDe, vecesAsignado, leerArmado, DELIMITADOR_DE_HEREDOC, MARCA_DE_CUERPO, finDeCuenta, empiezaCuenta, sinBlancosAlBorde, cierresDe, ABRE_O_CIERRA, SIGUE_UN_COMANDO, VALOR_DE_ASIGNACION, PREFIJO, PS_CON_VALOR, REDIRECCION_DE_SALIDA, blancoPorRedireccion, LECTORES_DE_FIND, BORRA_O_MUEVE, expandirLlaves, OPCIONES_DE_TEXTO, CON_MENSAJE, OPCIONES_QUE_EJECUTAN, BUSCADOR_EJECUTA, BUSCADORES, A_UN_SHELL, TOPE_DE_TUBERIAS, vaAUnShell, textosCitados, programaDePerlSoloSustituye, piezasDeTramo, cierreDoble, carpetaDeCd, recorrerCarpetaDeCd, SHELL_CON_C, guionesInternos, TOPE_ANIDADOS, corredoresDeLaOrganizacion, sinComillasDeLosBordes, SED_W_EN_GUION, SED_W_EN_COMANDO, MODULOS_QUE_NO_CORREN, REQUIRE_QUE_NO_CORRE, PROGRAMA_LLEGA_A_PROCESOS, COMANDOS_QUE_NO_CORREN, programasSinProcesos, guionDeSedSinEfectos };

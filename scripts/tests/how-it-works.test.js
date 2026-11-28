@@ -946,7 +946,8 @@ test('HowItWorks_TimeControls_OnlyWhenChosen @story-7.40 @ac-11 — los de horas
 
 test('HowItWorks_Strip_ChosenTimeToolNotStruck — la de horas elegida no sale tachada aunque la llave vieja diga false', () => conCasa(() => {
   const H2 = HIW();
-  const tachada = (k) => `class="ct-ap" title="${TX().t('es', 'comoTrabaja.apagadoEnTuOrganizacion')}">${k}<`;
+  // la franja muestra cada integración con su nombre de la pantalla (A176)
+  const tachada = (k) => `class="ct-ap" title="${TX().t('es', 'comoTrabaja.apagadoEnTuOrganizacion')}">${(() => { try { return TX().t('es', `comoTrabaja.integ.${k}`); } catch (_) { return k; } })()}<`;
   const m = H2.buildModel({ treeDir: ROOT, profileDir: perfilIntegraciones({ timeTracking: 'clockify', clockify: false, engram: true }) });
   assert.strictEqual(m.org.integrations.clockify, true, 'la elegida, prendida en la franja');
   const html = TAB().renderPage(m, { idioma: 'es', publicRepo: PUBLICO, version: 'v' });
@@ -1735,4 +1736,41 @@ test('T74 2.79-Lector_ProblemaConEnlace @story-2.79 @ac-67 — el problema en ll
     assert.match(fila, /tiene que ser sí o no <a href="\/configuracion#seccion-aplicar">/, `${idioma}: con ruta propia, a su sección`);
     assert.doesNotMatch(html, /banderaQueNoTieneTexto/, `${idioma}: sin el id crudo de la marca`);
   }
+});
+
+// 🔴 Falla con: la franja «Tu organización» con los identificadores de las integraciones en inglés («ado clockify
+// engram…»), la clave «telegram.chat_id» y «nombres de prueba: any» mientras Configuración dice «Sin definir
+// (cualquier nombre sirve)» (A176).
+test('A176_HowItWorks_TuOrganizacion_EnPalabrasDeLaPantalla', () => conCasa(() => {
+  const REPOS = (rules) => ({ version: 1, public: { platform: 'github', org: 'acme', repo: 'arnes' }, profile: { platform: 'github', org: 'acme', repo: 'perfil' }, operations: { platform: 'github', org: 'acme', repo: 'operaciones' }, stack: { rules } });
+  const sinElegir = HIW().buildModel({ treeDir: ROOT, profileDir: carpeta(perfilCon({ repos: REPOS({}) })) });
+  const elegida = HIW().buildModel({ treeDir: ROOT, profileDir: carpeta(perfilCon({ repos: REPOS({ test_names: 'snake' }) })) });
+  // las del núcleo, con su nombre; la herramienta de horas elegida se nombra por lo que hace (el núcleo no nombra herramientas)
+  const ids = Object.keys(sinElegir.org.integrations).filter((k) => ['ado', 'engram', 'codegraph', 'mailbox', 'codex', 'nightly', 'instincts'].includes(k));
+  assert.ok(ids.length > 0, 'hay integraciones para mostrar');
+  for (const idioma of ['es', 'en']) {
+    const pagina = (m) => franjaDe(TAB().renderPage(m, { idioma, publicRepo: PUBLICO, version: 'v' }));
+    const f = pagina(sinElegir);
+    for (const id of ids) {
+      const nombre = TX().t(idioma, `comoTrabaja.integ.${id}`);
+      assert.notStrictEqual(nombre, `comoTrabaja.integ.${id}`, `${idioma}: ${id} sin su nombre`);
+      assert.ok(f.includes(`>${nombre}</span>`), `${idioma}: ${id} sale como «${nombre}»`);
+    }
+    assert.doesNotMatch(f, /telegram\.chat_id/);
+    assert.ok(f.includes(TX().t(idioma, 'comoTrabaja.reglaNombres', { valor: TX().t(idioma, 'pantalla.tecSinDeclararCualquiera') })), `${idioma}: sin elegir, lo que dice Configuración`);
+    assert.ok(pagina(elegida).includes(TX().t(idioma, 'comoTrabaja.reglaNombres', { valor: TX().t(idioma, 'pantalla.tecSnake') })), `${idioma}: elegida, la opción de Configuración`);
+    assert.doesNotMatch(f, /(nombres de prueba|test names): any/);
+  }
+}));
+
+// 🔴 mutación: un gancho que le dice algo a la sesión al arrancar (el aviso del disco) en «Anotan», que según la
+// leyenda no avisa; o la descripción de uno de «Avisan» que no dice qué avisa (A181).
+test('A181 Arranque_CadaPiezaEnElGrupoDeLoQueHace — el aviso del disco avisa; la actualización del freno dice que lo avisa', () => {
+  const lista = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'setup', 'hooks-list.json'), 'utf8')).hooks;
+  const efecto = (spec) => (lista.find((h) => h.spec === spec) || {}).effect;
+  assert.strictEqual(efecto('@tcg:disk-notice.js'), 'warns', 'dice al arrancar cuánto disco queda: avisa');
+  assert.strictEqual(efecto('@tcg:guard-auto-update.js'), 'warns', 'actúa y lo dice al arrancar');
+  const TX = require(path.join(ROOT, 'scripts', 'site', 'texts.js'));
+  assert.match(TX.t('es', 'control.@tcg:guard-auto-update.js'), /lo dice al arrancar/);
+  assert.match(TX.t('en', 'control.@tcg:guard-auto-update.js'), /says so at startup/);
 });
