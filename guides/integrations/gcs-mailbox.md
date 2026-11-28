@@ -1,5 +1,7 @@
 # El buzón de ejecuciones sobre Google Cloud Storage
 
+En inglés: [gcs-mailbox.en.md](gcs-mailbox.en.md).
+
 Para un equipo cuya nube es GCP: las máquinas suben sus ejecuciones a un bucket de Cloud Storage y el sitio de la
 organización, en Cloud Run, las lee. El conector vive en `integrations/gcs/` (tipo `mailbox`, proveedor `gcs`); el
 núcleo del arnés no lo nombra. Azure Blob Storage sigue igual.
