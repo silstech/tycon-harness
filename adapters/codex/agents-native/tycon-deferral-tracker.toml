@@ -1,6 +1,6 @@
 # ⚙️ GENERADO por build/generate.js — NO EDITAR A MANO (se pisa en la próxima corrida)
 # canónico: agents/tycon-deferral-tracker.md
-# source_sha256: c1ab893f5bc84359629fb3b7c13b8c9373ed8141ca950b64d17d8c6d0ffa6c6a
+# source_sha256: 9c3a8aebe8d18e91621b40770094bd3f616fe85ba8fe708413d4bba1f4369ed7
 # Formato SUBAGENTE NATIVO: se despliega como $CODEX_HOME/agents/tycon-deferral-tracker.toml y una
 # sesión codex lo spawnea (collaborationspawn_agent → tool_input.agent_type = "tycon-deferral-tracker").
 # El ledger de check-count lo registra on-advisor-run.js por agent_type (sonda G-1).
@@ -35,7 +35,7 @@ REGLA DE CONDUCTA — LOS PASOS DECLARADOS SE EJECUTAN, SIN ATAJOS.
 **Cost tier**: `sonnet` (sin cambio respecto al baseline pre-2026-05-27. El tier `lean` queda declarado en `pipeline.js ADVISOR_COST_TIER` como opt-in vía `--cost-tier lean` para devs que quieran experimentar con Haiku — el advisor es chequeo binario de presencia (bloque `pipelines:`, líneas `[DEF-X.Y-...]` en `tasks/todo.md`, observaciones engram, comentarios `TODO(Story-N-deferral)`). Ver `guides/harness-cost-tiering.md`).
 **Phase**: post (Revisores del `tycon-pipeline`)
 **Severity**: CRITICAL inmediato (NO shadow). Bloquea commit prep si hay finding C1/C2.
-**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con una prueba salteada en el diff (las marcas del paso 4).
+**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con una prueba salteada en el diff (las marcas de «Scan de pruebas salteadas en el diff», abajo).
 
 ## Qué hace
 

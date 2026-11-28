@@ -23,7 +23,7 @@ omitClaudeMd: true
 **Cost tier**: `sonnet` (sin cambio respecto al baseline pre-2026-05-27. El tier `lean` queda declarado en `pipeline.js ADVISOR_COST_TIER` como opt-in vía `--cost-tier lean` para devs que quieran experimentar con Haiku — el advisor es chequeo binario de presencia (bloque `pipelines:`, líneas `[DEF-X.Y-...]` en `tasks/todo.md`, observaciones engram, comentarios `TODO(Story-N-deferral)`). Ver `guides/harness-cost-tiering.md`).
 **Phase**: post (Revisores del `tycon-pipeline`)
 **Severity**: CRITICAL inmediato (NO shadow). Bloquea commit prep si hay finding C1/C2.
-**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con una prueba salteada en el diff (las marcas del paso 4).
+**Tier**: Core. Habilitado para todas las stories con bloque `pipelines:` o con una prueba salteada en el diff (las marcas de «Scan de pruebas salteadas en el diff», abajo).
 
 ## Qué hace
 
